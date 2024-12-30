@@ -328,6 +328,7 @@ void dds_sensor_proxy::handle_video_data( realdds::topics::image_msg && dds_fram
 
     if( _md_enabled )
     {
+        LOG_INFO( "dds_sensor_proxy::handle_video_data calling enqueue_frame for type " << vid_profile->get_stream_type());
         streaming.syncer.enqueue_frame( dds_frame.timestamp().to_ns(), streaming.syncer.hold( new_frame ) );
     }
     else
@@ -486,7 +487,7 @@ void dds_sensor_proxy::start( rs2_frame_callback_sptr callback )
         auto & streaming = _streaming_by_name[dds_stream->name()];
         streaming.syncer.on_frame_release( frame_releaser );
         streaming.syncer.on_frame_ready(
-            [this, &streaming]( syncer_type::frame_holder && fh, std::shared_ptr< const json > const & md )
+            [this, &streaming, &dds_stream]( syncer_type::frame_holder && fh, std::shared_ptr< const json > const & md )
             {
                 if( _is_streaming ) // stop was not called
                 {
@@ -494,6 +495,7 @@ void dds_sensor_proxy::start( rs2_frame_callback_sptr callback )
                         add_no_metadata( static_cast< frame * >( fh.get() ), streaming );
                     else
                         add_frame_metadata( static_cast< frame * >( fh.get() ), *md, streaming );
+                    LOG_INFO( dds_stream->name() << " calling invoke_new_frame, last frame number " << streaming.last_frame_number );
                     invoke_new_frame( static_cast< frame * >( fh.release() ), nullptr, nullptr );
                 }
             } );

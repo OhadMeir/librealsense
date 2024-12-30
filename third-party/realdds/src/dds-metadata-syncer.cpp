@@ -16,14 +16,17 @@ dds_metadata_syncer::dds_metadata_syncer()
     : _is_alive( std::make_shared< bool >( true ) )
     , _on_frame_release( nullptr )
 {
+    LOG_INFO( "dds_metadata_syncer::dds_metadata_syncer" );
 }
 
 
 dds_metadata_syncer::~dds_metadata_syncer()
 {
+    LOG_INFO( "dds_metadata_syncer::~dds_metadata_syncer" );
     _is_alive.reset();
 
     std::lock_guard< std::mutex > lock( _queues_lock );
+    LOG_INFO( "dds_metadata_syncer::~dds_metadata_syncer got lock" );
     _frame_queue.clear();
     _metadata_queue.clear();
 }
@@ -31,11 +34,16 @@ dds_metadata_syncer::~dds_metadata_syncer()
 
 void dds_metadata_syncer::enqueue_frame( key_type id, frame_holder && frame )
 {
+    LOG_INFO( "dds_metadata_syncer::enqueue_frame" );
     std::weak_ptr< bool > alive = _is_alive;
-    if( ! alive.lock() ) // Check if was destructed by another thread
+    if( !alive.lock() ) // Check if was destructed by another thread
+    {
+        LOG_INFO( "dds_metadata_syncer::enqueue_frame not alive" );
         return;
+    }
 
     std::unique_lock< std::mutex > lock( _queues_lock );
+    LOG_INFO( "dds_metadata_syncer::enqueue_frame got lock" );
     // Expect increasing order
     if( ! _frame_queue.empty() && _frame_queue.back().first >= id )
         DDS_THROW( runtime_error, "frame " << id << " cannot be enqueued after " << _frame_queue.back().first );
@@ -105,6 +113,8 @@ void dds_metadata_syncer::search_for_match( std::unique_lock< std::mutex > & loc
 
 bool dds_metadata_syncer::handle_match( std::unique_lock< std::mutex > & lock )
 {
+    LOG_INFO( "dds_metadata_syncer::handle_match _frame_queue size " << _frame_queue.size() <<
+              " _metadata_queue size = " << _metadata_queue.size() );
     std::weak_ptr< bool > alive = _is_alive;
 
     frame_holder fh = std::move( _frame_queue.front().second );
@@ -114,10 +124,16 @@ bool dds_metadata_syncer::handle_match( std::unique_lock< std::mutex > & lock )
 
     if( _on_frame_ready )
     {
+        LOG_INFO( "dds_metadata_syncer::handle_match opening lock" );
         lock.unlock();
+        LOG_INFO( "dds_metadata_syncer::handle_match calling _on_frame_ready" );
         _on_frame_ready( std::move( fh ), md );
-        if( ! alive.lock() )  // Check if was destructed by another thread during callback
+        if( !alive.lock() )  // Check if was destructed by another thread during callback
+        {
+            LOG_INFO( "dds_metadata_syncer::handle_match not alive" );
             return false;
+        }
+        LOG_INFO( "dds_metadata_syncer::handle_match locking lock" );
         lock.lock();
     }
 
@@ -127,6 +143,8 @@ bool dds_metadata_syncer::handle_match( std::unique_lock< std::mutex > & lock )
 
 bool dds_metadata_syncer::handle_frame_without_metadata( std::unique_lock< std::mutex > & lock )
 {
+    LOG_INFO( "dds_metadata_syncer::handle_frame_without_metadata _frame_queue size " << _frame_queue.size() <<
+              " _metadata_queue size = " << _metadata_queue.size() );
     std::weak_ptr< bool > alive = _is_alive;
 
     frame_holder fh = std::move( _frame_queue.front().second );
@@ -134,10 +152,16 @@ bool dds_metadata_syncer::handle_frame_without_metadata( std::unique_lock< std::
 
     if( _on_frame_ready )
     {
+        LOG_INFO( "dds_metadata_syncer::handle_frame_without_metadata opening lock" );
         lock.unlock();
+        LOG_INFO( "dds_metadata_syncer::handle_frame_without_metadata calling _on_frame_ready" );
         _on_frame_ready( std::move( fh ), metadata_type() );
         if( ! alive.lock() )  // Check if was destructed by another thread during callback
+        {
+            LOG_INFO( "dds_metadata_syncer::handle_frame_without_metadata not alive" );
             return false;
+        }
+        LOG_INFO( "dds_metadata_syncer::handle_frame_without_metadata locking lock" );
         lock.lock();
     }
 
