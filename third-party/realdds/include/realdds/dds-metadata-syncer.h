@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 #include <functional>
+#include <atomic>
 
 
 namespace realdds {
@@ -83,7 +84,7 @@ public:
     void enqueue_metadata( key_type, metadata_type const & );
 
     void on_frame_release( on_frame_release_callback cb ) { _on_frame_release = cb; }
-    void on_frame_ready( on_frame_ready_callback cb ) { _on_frame_ready = cb; }
+    void on_frame_ready( on_frame_ready_callback cb );
     void on_metadata_dropped( on_metadata_dropped_callback cb ) { _on_metadata_dropped = cb; }
 
     // Helper to create frame_holder
@@ -104,6 +105,7 @@ private:
     bool drop_metadata( std::unique_lock< std::mutex > & );
 
     std::atomic< bool > _started;
+    std::recursive_mutex _frame_ready_mutex;
 };
 
 

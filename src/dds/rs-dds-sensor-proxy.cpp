@@ -497,10 +497,10 @@ void dds_sensor_proxy::start( rs2_frame_callback_sptr callback )
                         add_frame_metadata( static_cast< frame * >( fh.get() ), *md, streaming );
                     LOG_INFO( dds_stream->name() << " calling invoke_new_frame, last frame number " << streaming.last_frame_number );
                     invoke_new_frame( static_cast< frame * >( fh.release() ), nullptr, nullptr );
-                    LOG_INFO( dds_stream->name() << "invoke_new_frame returned, last frame number " << streaming.last_frame_number );
+                    LOG_INFO( dds_stream->name() << " invoke_new_frame returned, last frame number " << streaming.last_frame_number );
                 }
             } );
-        streaming.syncer.start();
+        //streaming.syncer.start();
 
         if( auto dds_video_stream = std::dynamic_pointer_cast< realdds::dds_video_stream >( dds_stream ) )
         {
@@ -537,8 +537,6 @@ void dds_sensor_proxy::start( rs2_frame_callback_sptr callback )
 
 void dds_sensor_proxy::stop()
 {
-    _is_streaming = false; // Don't handle new frames
-
     for( auto & profile : sensor_base::get_active_streams() )
     {
         auto streamit = _streams.find( sid_index( profile->get_unique_id(), profile->get_stream_index() ) );
@@ -554,8 +552,8 @@ void dds_sensor_proxy::stop()
 
         // Nullifing the lambda is commented out because we don't want to nullify in middle of user callback (that might
         // be long) instead we use start/stop.
-        //_streaming_by_name[dds_stream->name()].syncer.on_frame_ready( nullptr );
-        _streaming_by_name[dds_stream->name()].syncer.stop();
+        _streaming_by_name[dds_stream->name()].syncer.on_frame_ready( nullptr );
+        //_streaming_by_name[dds_stream->name()].syncer.stop();
 
         if( auto dds_video_stream = std::dynamic_pointer_cast< realdds::dds_video_stream >( dds_stream ) )
         {
