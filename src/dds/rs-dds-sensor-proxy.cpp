@@ -497,6 +497,7 @@ void dds_sensor_proxy::start( rs2_frame_callback_sptr callback )
                         add_frame_metadata( static_cast< frame * >( fh.get() ), *md, streaming );
                     LOG_INFO( dds_stream->name() << " calling invoke_new_frame, last frame number " << streaming.last_frame_number );
                     invoke_new_frame( static_cast< frame * >( fh.release() ), nullptr, nullptr );
+                    LOG_INFO( dds_stream->name() << "invoke_new_frame returned, last frame number " << streaming.last_frame_number );
                 }
             } );
 

@@ -283,7 +283,9 @@ void software_sensor::invoke_new_frame( frame_holder && frame, void const * pixe
     // The frame pixels/data are stored in the continuation object!
     if( pixels )
         frame->attach_continuation( frame_continuation( on_release, pixels ) );
+    LOG_INFO( "software_sensor::invoke_new_frame calling _source.invoke_callback" );
     _source.invoke_callback( std::move( frame ) );
+    LOG_INFO( "software_sensor::invoke_new_frame _source.invoke_callback returned" );
 }
 
 
