@@ -158,7 +158,6 @@ namespace librealsense
         {
             try
             {
-                std::lock_guard< std::recursive_mutex > lock( _mutex );
                 if (_callback)
                 {
                     frame_interface* ref = nullptr;
