@@ -127,8 +127,8 @@ bool dds_metadata_syncer::handle_match( std::unique_lock< std::mutex > & lock )
     _metadata_queue.pop_front();
     _frame_queue.pop_front();
 
-    std::lock_guard< std::recursive_mutex > frame_ready_lock( _frame_ready_mutex );
-    if( _on_frame_ready )
+    //std::lock_guard< std::recursive_mutex > frame_ready_lock( _frame_ready_mutex );
+    if( _on_frame_ready && _started )
     {
         LOG_INFO( "dds_metadata_syncer::handle_match opening lock" );
         lock.unlock();
@@ -156,8 +156,8 @@ bool dds_metadata_syncer::handle_frame_without_metadata( std::unique_lock< std::
     frame_holder fh = std::move( _frame_queue.front().second );
     _frame_queue.pop_front();
 
-    std::lock_guard< std::recursive_mutex > frame_ready_lock( _frame_ready_mutex );
-    if( _on_frame_ready )
+    //std::lock_guard< std::recursive_mutex > frame_ready_lock( _frame_ready_mutex );
+    if( _on_frame_ready && _started )
     {
         LOG_INFO( "dds_metadata_syncer::handle_frame_without_metadata opening lock" );
         lock.unlock();
