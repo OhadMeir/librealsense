@@ -7,6 +7,7 @@
 #include <common/cli.h>
 #include <rsutils/string/from.h>
 
+#include <thread>
 
 static const double pi = std::acos(-1);
 static const double d2r = pi / 180;
@@ -14,9 +15,13 @@ static const double r2d = 180 / pi;
 template<typename T> T deg2rad(T val) { return T(val * d2r); }
 template<typename T> T rad2deg(T val) { return T(val * r2d); }
 
-void load_frames( const std::string& path, rs2::frame_queue& left_queue, rs2::frame_queue& right_queue, size_t number_of_frames)
+void load_frames( const std::string& path, rs2::frame_queue& left_queue, rs2::frame_queue& right_queue,
+                  size_t number_of_frames, unsigned int from, unsigned int to )
 {
-    std::cout << "Loading frames ... ";
+    if( from != 0 && to != 0 )
+        number_of_frames = to - from;
+
+    std::cout << "Loading frames ... " << std::endl;
 
     auto pipe = std::make_shared< rs2::pipeline >();
     rs2::config cfg;
@@ -27,20 +32,52 @@ void load_frames( const std::string& path, rs2::frame_queue& left_queue, rs2::fr
     rs2::device device = pipe->get_active_profile().get_device();
 
     rs2::frameset frames;
-    rs2::frame frame;
+    rs2::frame left_frame;
+    rs2::frame right_frame;
 
     if( rs2::playback playback = device.as< rs2::playback >() )
     {
         // Read until end of file or requested number of frames, the earlier.
-        for( size_t i = 0; i < number_of_frames; ++i ) // Check if new frames are ready
+        if( to > 0 ) // Use frame range
         {
-            if( frames = pipe->wait_for_frames( ) )
+            while( frames = pipe->wait_for_frames( 100 ) )
             {
-                frame = frames.get_infrared_frame( 1 );
-                left_queue.enqueue( frame );
+                left_frame = frames.get_infrared_frame( 1 );
+                if( left_frame.get_frame_number() < from )
+                    continue;
+                if( left_frame.get_frame_number() > to )
+                    break;
 
-                frame = frames.get_infrared_frame( 2 );
-                right_queue.enqueue( frame );
+                std::cout << "Got frame " << left_frame.get_frame_number() << std::endl;
+                left_queue.enqueue( left_frame );
+
+                right_frame = frames.get_infrared_frame( 2 );
+                if( right_frame.get_frame_number() != left_frame.get_frame_number() )
+                    throw std::runtime_error( rsutils::string::from() << "Unsynchronized frames! left " <<
+                                              left_frame.get_frame_number() << ", right " << right_frame.get_frame_number() );
+                right_queue.enqueue( right_frame );
+            }
+        }
+        else // Use number of frames
+        {
+            for( size_t i = 0; i < number_of_frames; ++i )
+            {
+                if( frames = pipe->wait_for_frames( 100 ) )
+                {
+                    left_frame = frames.get_infrared_frame( 1 );
+                    std::cout << "Got frame " << left_frame.get_frame_number() << std::endl;
+
+                    left_queue.enqueue( left_frame );
+
+                    right_frame = frames.get_infrared_frame( 2 );
+                    if( right_frame.get_frame_number() != left_frame.get_frame_number() )
+                    {
+                        throw std::runtime_error( rsutils::string::from()
+                                                  << "Unsynchronized frames! left " << left_frame.get_frame_number()
+                                                  << ", right " << right_frame.get_frame_number() );
+                    }
+                    right_queue.enqueue( right_frame );
+                }
             }
         }
     }
@@ -247,11 +284,19 @@ int main(int argc, char * argv[]) try
     using rs2::cli;
     cli cmd( "rs-fl-calib example" );
     cli::value< std::string > path_arg('p', "path", "path", "", "Path of the folder containing the files");
-    cli::value< unsigned int > number_arg( 'n', "number", "unsigned", 25, "Number of frames per channel" );
-    cli::value< float > width_arg( 'w', "target_width", "float", 175.0f, "Target width, millimeters" );
-    cli::value< float > height_arg( 'h', "target_height", "float", 100.0f, "Target height, millimeters" );
+    cli::value< unsigned int > number_arg( 'n', "number", "unsigned", 50, "Number of frames per channel" );
+    cli::value< unsigned int > from_arg( 'f', "from", "unsigned", 0, "When specifying frame range - first frame in the range" );
+    cli::value< unsigned int > to_arg( 't', "to", "unsigned", 0, "When specifying frame range - last frame in the range" );
+    cli::value< float > width_arg( "target_width", "float", 175.0f, "Target width, millimeters" );
+    cli::value< float > height_arg( "target_height", "float", 100.0f, "Target height, millimeters" );
     cli::value< float > baseline_arg( 'b', "baseline", "float", 100.0f, "baseline, millimeters" );
-    cmd.add(path_arg);
+    cmd.add( path_arg );
+    cmd.add( number_arg );
+    cmd.add( from_arg );
+    cmd.add( to_arg );
+    cmd.add( width_arg );
+    cmd.add( height_arg );
+    cmd.add( baseline_arg );
     auto settings = cmd.process( argc, argv );
 
     if( !path_arg.isSet() )
@@ -264,7 +309,7 @@ int main(int argc, char * argv[]) try
 
     rs2::frame_queue left_queue( number_arg.getValue() );
     rs2::frame_queue right_queue( number_arg.getValue() );
-    load_frames( path_arg.getValue(), left_queue, right_queue, number_arg.getValue() );
+    load_frames( path_arg.getValue(), left_queue, right_queue, number_arg.getValue(), from_arg.getValue(), to_arg.getValue() );
 
     float ratio = 0.0f;
     float angle = 0.0f;
