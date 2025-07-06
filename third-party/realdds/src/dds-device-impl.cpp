@@ -296,6 +296,7 @@ void dds_device::impl::on_query_options( json const & j, dds_sample const & )
         {
             if( option->get_name() == option_name )
             {
+                LOG_INFO( option_name << " " << new_value );
                 option->set_value( new_value );
                 return;
             }
@@ -737,6 +738,7 @@ void dds_device::impl::on_stream_options( json const & j, dds_sample const & sam
                     // Single intrinsics that will get scaled
                     intrinsics.insert( video_intrinsics::from_json( j_int ) );
                 }
+                LOG_INFO( "Received intrinsics for stream '" << stream->name() << "' " << j_int );
                 video_stream->set_intrinsics( intrinsics );
             }
             catch( std::exception const & e )
@@ -804,14 +806,14 @@ void dds_device::impl::on_calibration_changed( json const & j, dds_sample const 
                     if( ! new_intrinsics.insert( std::move( i ) ).second )
                         DDS_THROW( runtime_error, "width & height specified twice: " << ij );
                 }
-                LOG_DEBUG( "calibration-changed '" << stream->name() << "': changing " << j_int );
+                LOG_INFO( "calibration-changed '" << stream->name() << "': changing " << j_int );
             }
             else
             {
                 // Single intrinsics that will get scaled
                 auto i = *old_intrinsics.begin();
+                LOG_INFO( "calibration-changed '" << stream->name() << "': changing " << j_int << " --> " << i );
                 i.override_from_json( j_int );
-                LOG_DEBUG( "calibration-changed '" << stream->name() << "': changing " << j_int << " --> " << i );
                 new_intrinsics.insert( std::move( i ) );
             }
 

@@ -460,6 +460,12 @@ void dds_sensor_proxy::add_frame_metadata( frame * const f,
     md_header.nested( realdds::topics::metadata::header::key::timestamp_domain )
         .get_ex( f->additional_data.timestamp_domain );
 
+    auto vsp = As< video_stream_profile_interface >( f->get_stream() );
+    if( vsp->get_stream_type() == RS2_STREAM_COLOR )
+    {
+        LOG_INFO( "Color intrinsics focal = (" << std::setprecision(10) << vsp->get_intrinsics().fx << ", " << vsp->get_intrinsics().fy << ")" );
+    }
+
     if( ! md.empty() )
     {
         // Other metadata fields. Metadata fields that are present but unknown by librealsense will be ignored.
