@@ -1157,7 +1157,13 @@ namespace librealsense
         case RS405_PID:
             return std::make_shared< rs405_device >( dev_info, register_device_notifications );
         case RS455_PID:
-            return std::make_shared< rs455_device >( dev_info, register_device_notifications );
+            {
+            auto start = std::chrono::high_resolution_clock::now();
+            auto dev = std::make_shared< rs455_device >( dev_info, register_device_notifications );
+            auto end = std::chrono::high_resolution_clock::now();
+            LOG_DEBUG( "Timing - std::make_shared< rs455_device > " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
+            return dev;
+            }
         case RS457_PID:
             return std::make_shared< rs457_device >( dev_info, register_device_notifications );
         case RS430_GMSL_PID:

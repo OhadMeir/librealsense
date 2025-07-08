@@ -178,12 +178,17 @@ std::vector< std::shared_ptr< device_info > > backend_device_factory::query_devi
     if( ( requested_mask & RS2_PRODUCT_LINE_SW_ONLY ) || ( ctx->get_device_mask() & RS2_PRODUCT_LINE_SW_ONLY ) )
         return {};  // We don't carry any software devices
 
+    auto start = std::chrono::high_resolution_clock::now();
+
     auto backend = _device_watcher->get_backend();
     platform::backend_device_group group( backend->query_uvc_devices(),
                                           backend->query_usb_devices(),
                                           backend->query_mipi_devices(),
                                           backend->query_hid_devices() );
     auto devices = create_devices_from_group( group, requested_mask );
+
+    auto end = std::chrono::high_resolution_clock::now();
+    LOG_DEBUG( "Timing - backend_device_factory::query_devices " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
     return { devices.begin(), devices.end() };
 }
 

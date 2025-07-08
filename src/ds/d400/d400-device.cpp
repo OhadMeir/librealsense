@@ -563,6 +563,7 @@ namespace librealsense
         const platform::backend_device_group& group)
     {
         using namespace ds;
+        auto start = std::chrono::high_resolution_clock::now();
 
         auto raw_sensor = get_raw_depth_sensor();
         _pid = group.uvc_devices.front().pid;
@@ -628,16 +629,25 @@ namespace librealsense
         // minimal firmware version in which hdr feature is supported
         firmware_version hdr_firmware_version("5.12.8.100");
 
+        auto end = std::chrono::high_resolution_clock::now();
+        LOG_DEBUG( "Timing - d400_device::init part 1 " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
         std::string optic_serial, asic_serial, pid_hex_str, usb_type_str;
         bool advanced_mode, usb_modality;
         group_multiple_fw_calls(depth_sensor, [&]() {
 
-            _hw_monitor->get_gvd(gvd_buff.size(), gvd_buff.data(), GVD);
-
+            auto start = std::chrono::high_resolution_clock::now();
+            _hw_monitor->get_gvd( gvd_buff.size(), gvd_buff.data(), GVD );
+            auto end = std::chrono::high_resolution_clock::now();
+            LOG_DEBUG( "Timing - d400_device::init get_gvd " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
             std::string fwv;
+            
+            start = std::chrono::high_resolution_clock::now();
             _ds_device_common->get_fw_details( gvd_buff, optic_serial, asic_serial, fwv );
+            end = std::chrono::high_resolution_clock::now();
+            LOG_DEBUG( "Timing - d400_device::init get_fw_details " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
 
-            _fw_version = firmware_version(fwv);
+            start = std::chrono::high_resolution_clock::now();
+            _fw_version = firmware_version( fwv );
 
             _recommended_fw_version = firmware_version(D4XX_RECOMMENDED_FIRMWARE_VERSION);
             if (_fw_version >= firmware_version("5.10.4.0"))
@@ -785,9 +795,12 @@ namespace librealsense
                 DS5_ENABLE_AUTO_EXPOSURE,
                 "Enable Auto Exposure");
             depth_sensor.register_option(RS2_OPTION_ENABLE_AUTO_EXPOSURE, enable_auto_exposure);
+            end = std::chrono::high_resolution_clock::now();
+            LOG_DEBUG( "Timing - d400_device::init part 2 " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
 
             // register HDR options
-            if (_fw_version >= hdr_firmware_version)
+            start = std::chrono::high_resolution_clock::now();
+            if( _fw_version >= hdr_firmware_version )
             {
                 auto d400_depth = As<d400_depth_sensor, synthetic_sensor>(&get_depth_sensor());
                 d400_depth->init_hdr_config(exposure_range, gain_range);
@@ -959,9 +972,13 @@ namespace librealsense
                 depth_sensor.register_option(RS2_OPTION_DEPTH_UNITS, std::make_shared<const_value_option>("Number of meters represented by a single depth unit",
                         rsutils::lazy< float >( [default_depth_units]() { return default_depth_units; } ) ) );
             }
+            end = std::chrono::high_resolution_clock::now();
+            LOG_DEBUG( "Timing - d400_device::init part 3 " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
+
         }); //group_multiple_fw_calls
 
         
+        start = std::chrono::high_resolution_clock::now();
         // REGISTER METADATA
         if (!_is_mipi_device)
         {
@@ -997,6 +1014,9 @@ namespace librealsense
             register_info(RS2_CAMERA_INFO_CONNECTION_TYPE, "GMSL");
 
         std::string curr_version= _fw_version;
+        end = std::chrono::high_resolution_clock::now();
+        LOG_DEBUG( "Timing - d400_device::init part 4 "
+                   << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
 
         register_features();
 
@@ -1009,6 +1029,7 @@ namespace librealsense
 
     void d400_device::register_features()
     {
+        auto start = std::chrono::high_resolution_clock::now();
         firmware_version fw_ver = firmware_version( get_info( RS2_CAMERA_INFO_FIRMWARE_VERSION ) );
         auto pid = get_pid();
 
@@ -1029,6 +1050,10 @@ namespace librealsense
                 std::make_shared< auto_exposure_limit_feature >( get_depth_sensor(), d400_device::_hw_monitor ) );
             register_feature( std::make_shared< gain_limit_feature >( get_depth_sensor(), d400_device::_hw_monitor ) );
         }
+        auto end = std::chrono::high_resolution_clock::now();
+        LOG_DEBUG( "Timing - d400_device::init register features "
+                   << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
+
     }
 
     void d400_device::register_metadata(const synthetic_sensor &depth_sensor, const firmware_version& hdr_firmware_version) const

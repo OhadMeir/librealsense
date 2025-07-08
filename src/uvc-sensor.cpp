@@ -418,9 +418,12 @@ void uvc_sensor::acquire_power()
     {
         try
         {
+            auto start = std::chrono::high_resolution_clock::now();
             _device->set_power_state( platform::D0 );
             for( auto && xu : _xus )
                 _device->init_xu( xu );
+            auto end = std::chrono::high_resolution_clock::now();
+            LOG_DEBUG( "Timing - acquire_power " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
         }
         catch( std::exception const & e )
         {

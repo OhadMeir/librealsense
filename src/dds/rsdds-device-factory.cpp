@@ -185,6 +185,8 @@ rsdds_device_factory::~rsdds_device_factory() {}
 std::vector< std::shared_ptr< device_info > > rsdds_device_factory::query_devices( unsigned requested_mask ) const
 {
     std::vector< std::shared_ptr< device_info > > list;
+    auto start = std::chrono::high_resolution_clock::now();
+
     if( _watcher_singleton )
     {
         unsigned const mask = context::combine_device_masks( requested_mask, get_context()->get_device_mask() );
@@ -285,6 +287,8 @@ std::vector< std::shared_ptr< device_info > > rsdds_device_factory::query_device
                 return true;  // continue iteration
             } );
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    LOG_DEBUG( "Timing - rsdds_device_factory::query_devices " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
     return list;
 }
 

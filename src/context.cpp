@@ -57,13 +57,17 @@ namespace librealsense {
             LOG_DEBUG( "Librealsense VERSION: " << RS2_API_FULL_VERSION_STR );
         }
 
-         _settings = load_settings( settings );  // global | application | local
-         _device_mask = _settings.nested( "device-mask" ).default_value< unsigned >( RS2_PRODUCT_LINE_ANY );
+        auto start = std::chrono::high_resolution_clock::now();
+        _settings = load_settings( settings );  // global | application | local
+        auto end = std::chrono::high_resolution_clock::now();
+        LOG_DEBUG( "Timing - context:load_settings " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
+        _device_mask = _settings.nested( "device-mask" ).default_value< unsigned >( RS2_PRODUCT_LINE_ANY );
     }
 
 
     void context::create_factories( std::shared_ptr< context > const & sptr )
     {
+        auto start = std::chrono::high_resolution_clock::now();
         if( 0 == ( get_device_mask() & RS2_PRODUCT_LINE_SW_ONLY ) )
         {
             _factories.push_back( std::make_shared< backend_device_factory >(
@@ -72,13 +76,18 @@ namespace librealsense {
                         std::vector< std::shared_ptr< device_info > > const & added )
                 { invoke_devices_changed_callbacks( removed, added ); } ) );
         }
+        auto end = std::chrono::high_resolution_clock::now();
+        LOG_DEBUG( "Timing - context:create_factories creating backend_device_factory " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
 
 #ifdef BUILD_WITH_DDS
+        start = std::chrono::high_resolution_clock::now();
         _factories.push_back( std::make_shared< rsdds_device_factory >(
             sptr,
             [this]( std::vector< std::shared_ptr< device_info > > const & removed,
                     std::vector< std::shared_ptr< device_info > > const & added )
             { invoke_devices_changed_callbacks( removed, added ); } ) );
+        end = std::chrono::high_resolution_clock::now();
+        LOG_DEBUG( "Timing - context:create_factories creating rsdds_device_factory " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
 #endif
     }
 
@@ -86,7 +95,10 @@ namespace librealsense {
     /*static*/ std::shared_ptr< context > context::make( json const & settings )
     {
         std::shared_ptr< context > sptr( new context( settings ) );
+        auto start = std::chrono::high_resolution_clock::now();
         sptr->create_factories( sptr );
+        auto end = std::chrono::high_resolution_clock::now();
+        LOG_DEBUG( "Timing - context:create_factories " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
         return sptr;
     }
 
@@ -121,6 +133,7 @@ namespace librealsense {
 
     std::vector< std::shared_ptr< device_info > > context::query_devices( int requested_mask ) const
     {
+        auto start = std::chrono::high_resolution_clock::now();
         std::vector< std::shared_ptr< device_info > > list;
         for( auto & factory : _factories )
         {
@@ -140,6 +153,9 @@ namespace librealsense {
         }
         LOG_DEBUG( "Found " << list.size() << " RealSense devices (0x" << std::hex << requested_mask
                             << " requested & 0x" << get_device_mask() << " from device-mask in settings)" << std::dec );
+
+        auto end = std::chrono::high_resolution_clock::now();
+        LOG_DEBUG( "Timing - context:query_devices " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
         return list;
     }
 
