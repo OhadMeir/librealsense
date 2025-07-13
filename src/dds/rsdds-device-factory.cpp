@@ -46,6 +46,7 @@ public:
     rsdds_watcher_singleton( std::shared_ptr< realdds::dds_participant > const & participant )
         : _device_watcher( std::make_shared< realdds::dds_device_watcher >( participant ) )
     {
+        LOG_INFO( "rsdds_watcher_singleton contructor" );
         assert( _device_watcher->is_stopped() );
 
         _device_watcher->on_device_added(
@@ -97,9 +98,11 @@ static std::mutex domain_context_by_id_mutex;
 rsdds_device_factory::rsdds_device_factory( std::shared_ptr< context > const & ctx, callback && cb )
     : super( ctx )
 {
+    LOG_INFO( "rsdds_device_factory getting context dds settings" );
     auto dds_settings = ctx->get_settings().nested( std::string( "dds", 3 ) );
     if( dds_settings.nested( std::string( "enabled", 7 ) ).default_value( false ) )
     {
+        LOG_INFO( "rsdds_device_factory - dds is enabled" );
         auto domain_id = dds_settings.nested( std::string( "domain", 6 ) ).default_value< realdds::dds_domain_id >( 0 );
         auto participant_name_j = dds_settings.nested( std::string( "participant", 11 ) );
         auto participant_name = participant_name_j.default_value( rsutils::os::executable_name() );
@@ -176,6 +179,10 @@ rsdds_device_factory::rsdds_device_factory( std::shared_ptr< context > const & c
                 cb( infos_removed, infos_added );
             } );
     }
+    else
+    {
+        LOG_INFO( "rsdds_device_factory - dds is disabled" );
+    }
 }
 
 
@@ -189,6 +196,8 @@ std::vector< std::shared_ptr< device_info > > rsdds_device_factory::query_device
 
     if( _watcher_singleton )
     {
+        LOG_INFO( "rsdds_device_factory - _watcher_singleton exists" );
+
         unsigned const mask = context::combine_device_masks( requested_mask, get_context()->get_device_mask() );
 
         auto participant = _watcher_singleton->get_device_watcher()->get_participant();
@@ -286,6 +295,10 @@ std::vector< std::shared_ptr< device_info > > rsdds_device_factory::query_device
                 }
                 return true;  // continue iteration
             } );
+    }
+    else
+    {
+        LOG_INFO( "rsdds_device_factory - _watcher_singleton is null" );
     }
     auto end = std::chrono::high_resolution_clock::now();
     LOG_DEBUG( "Timing - rsdds_device_factory::query_devices " << std::chrono::duration_cast< std::chrono::microseconds >( end - start ).count() << "[us]" );
