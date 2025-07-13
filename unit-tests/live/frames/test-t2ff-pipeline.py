@@ -16,7 +16,7 @@ import platform
 # Verify that the time do not exceeds the maximum time allowed
 # Note - Using Windows Media Foundation to handle power management between USB actions take time (~27 ms)
 
-
+rs.log_to_console(rs.log_severity.info)
 # Set maximum delay for first frame according to product line
 dev, ctx = test.find_first_device_or_exit()
 

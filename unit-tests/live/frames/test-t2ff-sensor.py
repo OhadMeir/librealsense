@@ -10,6 +10,7 @@ from rspy import test, log
 import time
 import platform
 
+rs.log_to_console(rs.log_severity.info)
 # Start depth + color streams and measure the time from stream opened until first frame arrived using sensor API.
 # Verify that the time do not exceeds the maximum time allowed
 # Note - Using Windows Media Foundation to handle power management between USB actions take time (~27 ms)

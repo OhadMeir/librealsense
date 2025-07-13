@@ -33,17 +33,19 @@ namespace librealsense {
             return context_settings;
 
         auto const filename = rsutils::os::get_special_folder( rsutils::os::special_folder::app_data ) + RS2_CONFIG_FILENAME;
+        LOG_INFO( "Found config file " << filename );
         auto config = rsutils::json_config::load_from_file( filename );
-
         if (config.is_discarded())
         {
             LOG_ERROR( "No valid configuration file found at : " << filename << " loading defaults" );
         }
         // Take only the 'context' part of it
         config = rsutils::json_config::load_settings( config, "context", "config-file" );
+        LOG_INFO( "Context configuration loaded from file - " << config );
 
         // Patch the given context settings into the configuration
         config.override( context_settings, "context settings" );
+        LOG_INFO( "Context settings - " << config );
         return config;
     }
 

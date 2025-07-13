@@ -8,6 +8,7 @@ import pyrealsense2 as rs
 from rspy import log, repo, test
 from rspy.stopwatch import Stopwatch
 
+rs.log_to_console(rs.log_severity.info)
 #############################################################################################
 #
 test.start( "Run enumerate-devices runtime test" )

@@ -11,6 +11,7 @@ from rspy.stopwatch import Stopwatch
 import time
 
 # Verify reasonable enumeration time for the device
+rs.log_to_console(rs.log_severity.info)
 
 dev = None
 device_removed = False
@@ -35,7 +36,6 @@ def get_max_enum_time_by_device( dev ):
         return MAX_ENUM_TIME_D400
     elif dev.get_info( rs.camera_info.product_line ) == "D500":
         if dev.get_info( rs.camera_info.connection_type) == "DDS":
-            print(18)
             return MAX_ENUM_TIME_D500 + 3  # some extra time for discovery and initialization for DDS
         return MAX_ENUM_TIME_D500
     return 0;
