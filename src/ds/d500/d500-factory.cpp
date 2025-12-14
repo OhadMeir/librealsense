@@ -161,104 +161,187 @@ namespace librealsense
         }
     };
     
-class d555_device
-    : public d500_active
-    , public d500_color
-    , public d500_motion
-    , public ds_advanced_mode_base
-    , public extended_firmware_logger_device
-    , public eth_config_device
-{
-public:
-    d555_device( std::shared_ptr< const d500_info > dev_info )
-        : device( dev_info )
-        , backend_device( dev_info )
-        , d500_device( dev_info )
-        , d500_active( dev_info )
-        , d500_color( dev_info, RS2_FORMAT_YUYV )
-        , d500_motion( dev_info )
-        , ds_advanced_mode_base()
-        , extended_firmware_logger_device( dev_info, d500_device::_hw_monitor, get_firmware_logs_command() )
+    class d555_device
+        : public d500_active
+        , public d500_color
+        , public d500_motion
+        , public ds_advanced_mode_base
+        , public extended_firmware_logger_device
+        , public eth_config_device
     {
-        eth_config_device::init( static_cast< debug_interface * >( this ) );
-        ds_advanced_mode_base::initialize_advanced_mode( this );
-
-        auto & depth_sensor = get_depth_sensor();
-        group_multiple_fw_calls(depth_sensor, [&]()
+    public:
+        d555_device( std::shared_ptr< const d500_info > dev_info )
+            : device( dev_info )
+            , backend_device( dev_info )
+            , d500_device( dev_info )
+            , d500_active( dev_info )
+            , d500_color( dev_info, RS2_FORMAT_YUYV )
+            , d500_motion( dev_info )
+            , ds_advanced_mode_base()
+            , extended_firmware_logger_device( dev_info, d500_device::_hw_monitor, get_firmware_logs_command() )
         {
-            auto emitter_always_on_opt = std::make_shared<emitter_always_on_option>( d500_device::_hw_monitor,
-                                                                                     ds::LASERONCONST, ds::LASERONCONST);
-            depth_sensor.register_option( RS2_OPTION_EMITTER_ALWAYS_ON, emitter_always_on_opt );
+            eth_config_device::init( static_cast< debug_interface * >( this ) );
+            ds_advanced_mode_base::initialize_advanced_mode( this );
 
-            auto thermal_compensation_toggle = std::make_shared< d500_thermal_compensation_option >( d500_device::_hw_monitor );
+            auto & depth_sensor = get_depth_sensor();
+            group_multiple_fw_calls(depth_sensor, [&]()
+            {
+                auto emitter_always_on_opt = std::make_shared<emitter_always_on_option>( d500_device::_hw_monitor,
+                                                                                         ds::LASERONCONST, ds::LASERONCONST);
+                depth_sensor.register_option( RS2_OPTION_EMITTER_ALWAYS_ON, emitter_always_on_opt );
 
-            // Monitoring SOC PVT (not OHM) because it correlates to D400 ASIC temperature and we keep the model the same.
-            auto temperature_sensor = depth_sensor.get_option_handler( RS2_OPTION_SOC_PVT_TEMPERATURE );
+                auto thermal_compensation_toggle = std::make_shared< d500_thermal_compensation_option >( d500_device::_hw_monitor );
 
-            _thermal_monitor = std::make_shared< ds_thermal_monitor >( temperature_sensor, thermal_compensation_toggle );
+                // Monitoring SOC PVT (not OHM) because it correlates to D400 ASIC temperature and we keep the model the same.
+                auto temperature_sensor = depth_sensor.get_option_handler( RS2_OPTION_SOC_PVT_TEMPERATURE );
 
-            depth_sensor.register_option( RS2_OPTION_THERMAL_COMPENSATION,
-                                          std::make_shared< thermal_compensation >( _thermal_monitor, thermal_compensation_toggle ) );
+                _thermal_monitor = std::make_shared< ds_thermal_monitor >( temperature_sensor, thermal_compensation_toggle );
 
-            // We usually use "Custom" visual preset becasue we don't know what is the current setting.
-            // When connected by Ethernet D555 does not support "Custom" so we set here to "Default" to match.
-            depth_sensor.get_option( RS2_OPTION_VISUAL_PRESET ).set( RS2_RS400_VISUAL_PRESET_DEFAULT );
-        } );  // group_multiple_fw_calls
-    }
+                depth_sensor.register_option( RS2_OPTION_THERMAL_COMPENSATION,
+                                              std::make_shared< thermal_compensation >( _thermal_monitor, thermal_compensation_toggle ) );
 
-    std::shared_ptr< matcher > create_matcher( const frame_holder & frame ) const override
-    {
-        std::vector<stream_interface *> streams = { _depth_stream.get() , _left_ir_stream.get() , _right_ir_stream.get(),     _color_stream.get() };
-        std::vector<stream_interface *> mm_streams = { _ds_motion_common->get_accel_stream().get(),
-                                                       _ds_motion_common->get_gyro_stream().get() };
-        streams.insert( streams.end(), mm_streams.begin(), mm_streams.end() );
-        return matcher_factory::create( RS2_MATCHER_DEFAULT, streams );
-    }
+                // We usually use "Custom" visual preset becasue we don't know what is the current setting.
+                // When connected by Ethernet D555 does not support "Custom" so we set here to "Default" to match.
+                depth_sensor.get_option( RS2_OPTION_VISUAL_PRESET ).set( RS2_RS400_VISUAL_PRESET_DEFAULT );
+            } );  // group_multiple_fw_calls
+        }
+
+        std::shared_ptr< matcher > create_matcher( const frame_holder & frame ) const override
+        {
+            std::vector<stream_interface *> streams = { _depth_stream.get() , _left_ir_stream.get() , _right_ir_stream.get(), _color_stream.get() };
+            std::vector<stream_interface *> mm_streams = { _ds_motion_common->get_accel_stream().get(),
+                                                           _ds_motion_common->get_gyro_stream().get() };
+            streams.insert( streams.end(), mm_streams.begin(), mm_streams.end() );
+            return matcher_factory::create( RS2_MATCHER_DEFAULT, streams );
+        }
 
 
-    std::vector< tagged_profile > get_profiles_tags() const override
-    {
-        std::vector< tagged_profile > tags;
+        std::vector< tagged_profile > get_profiles_tags() const override
+        {
+            std::vector< tagged_profile > tags;
 
-        tags.push_back( { RS2_STREAM_COLOR, -1,
-                          896, 504, RS2_FORMAT_RGB8, 30,
-                          profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
-        tags.push_back( { RS2_STREAM_DEPTH, -1,
-                          896, 504, RS2_FORMAT_Z16, 30,
-                          profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
-        tags.push_back( { RS2_STREAM_INFRARED, -1,
-                          896, 504, RS2_FORMAT_Y8, 30,
-                          profile_tag::PROFILE_TAG_SUPERSET } );
-        tags.push_back( { RS2_STREAM_GYRO, -1,
-                          0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_200,
-                          profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
-        tags.push_back( { RS2_STREAM_ACCEL, -1,
-                          0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_100,
-                          profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
+            tags.push_back( { RS2_STREAM_COLOR, -1,
+                              896, 504, RS2_FORMAT_RGB8, 30,
+                              profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
+            tags.push_back( { RS2_STREAM_DEPTH, -1,
+                              896, 504, RS2_FORMAT_Z16, 30,
+                              profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
+            tags.push_back( { RS2_STREAM_INFRARED, -1,
+                              896, 504, RS2_FORMAT_Y8, 30,
+                              profile_tag::PROFILE_TAG_SUPERSET } );
+            tags.push_back( { RS2_STREAM_GYRO, -1,
+                              0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_200,
+                              profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
+            tags.push_back( { RS2_STREAM_ACCEL, -1,
+                              0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_100,
+                              profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
 
-        return tags;
+            return tags;
+        };
+
+        bool contradicts( const stream_profile_interface * a, const std::vector< stream_profile > & others ) const override
+        {
+            if( auto vid_a = dynamic_cast< const video_stream_profile_interface * >( a ) )
+            {
+                for( auto & request : others )
+                {
+                    if( a->get_framerate() != 0 && request.fps != 0 && ( a->get_framerate() != request.fps ) )
+                        return true;
+                }
+            }
+            return false;
+        }
     };
 
-    bool contradicts( const stream_profile_interface * a, const std::vector< stream_profile > & others ) const override
+    class d535_device : public d500_active
+                      , public d500_color
+                      , public d500_motion
+                      , public ds_advanced_mode_base
+                      , public extended_firmware_logger_device
     {
-        if( auto vid_a = dynamic_cast< const video_stream_profile_interface * >( a ) )
+    public:
+        d535_device( std::shared_ptr< const d500_info > dev_info )
+            : device( dev_info )
+            , backend_device( dev_info )
+            , d500_device( dev_info )
+            , d500_active( dev_info )
+            , d500_color( dev_info, RS2_FORMAT_M420 )
+            , d500_motion( dev_info )
+            , ds_advanced_mode_base()
+            , extended_firmware_logger_device( dev_info, d500_device::_hw_monitor, get_firmware_logs_command() )
         {
-            for( auto & request : others )
-            {
-                if( a->get_framerate() != 0 && request.fps != 0 && ( a->get_framerate() != request.fps ) )
-                    return true;
-            }
-        }
-        return false;
-    }
-};
+            ds_advanced_mode_base::initialize_advanced_mode( this );
 
+            auto & depth_sensor = get_depth_sensor();
+            group_multiple_fw_calls(depth_sensor, [&]()
+            {
+                auto emitter_always_on_opt = std::make_shared<emitter_always_on_option>( d500_device::_hw_monitor,
+                                                                                         ds::LASERONCONST, ds::LASERONCONST);
+                depth_sensor.register_option( RS2_OPTION_EMITTER_ALWAYS_ON, emitter_always_on_opt );
+
+                // Monitoring SOC PVT (not OHM) because it correlates to D400 ASIC temperature and we keep the model the same.
+                auto thermal_compensation_toggle = std::make_shared< d500_thermal_compensation_option >( d500_device::_hw_monitor );
+                auto temperature_sensor = depth_sensor.get_option_handler( RS2_OPTION_SOC_PVT_TEMPERATURE );
+                _thermal_monitor = std::make_shared< ds_thermal_monitor >( temperature_sensor, thermal_compensation_toggle );
+                depth_sensor.register_option( RS2_OPTION_THERMAL_COMPENSATION,
+                                              std::make_shared< thermal_compensation >( _thermal_monitor, thermal_compensation_toggle ) );
+            } );  // group_multiple_fw_calls
+        }
+
+        std::shared_ptr< matcher > create_matcher( const frame_holder & frame ) const override
+        {
+            std::vector<stream_interface *> streams = { _depth_stream.get() , _left_ir_stream.get() , _right_ir_stream.get(), _color_stream.get() };
+            std::vector<stream_interface *> mm_streams = { _ds_motion_common->get_accel_stream().get(),
+                                                           _ds_motion_common->get_gyro_stream().get() };
+            streams.insert( streams.end(), mm_streams.begin(), mm_streams.end() );
+            return matcher_factory::create( RS2_MATCHER_DEFAULT, streams );
+        }
+
+
+        std::vector< tagged_profile > get_profiles_tags() const override
+        {
+            std::vector< tagged_profile > tags;
+
+            tags.push_back( { RS2_STREAM_COLOR, -1,
+                              1280, 800, RS2_FORMAT_RGB8, 30,
+                              profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
+            tags.push_back( { RS2_STREAM_DEPTH, -1,
+                              1280, 800, RS2_FORMAT_Z16, 30,
+                              profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
+            tags.push_back( { RS2_STREAM_INFRARED, -1,
+                              1280, 800, RS2_FORMAT_RGB8, 30,
+                              profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
+            tags.push_back( { RS2_STREAM_GYRO, -1,
+                              0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_200,
+                              profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
+            tags.push_back( { RS2_STREAM_ACCEL, -1,
+                              0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_100,
+                              profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
+
+            return tags;
+        };
+
+        bool contradicts( const stream_profile_interface * a, const std::vector< stream_profile > & others ) const override
+        {
+            if( auto vid_a = dynamic_cast< const video_stream_profile_interface * >( a ) )
+            {
+                for( auto & request : others )
+                {
+                    if( a->get_framerate() != 0 && request.fps != 0 && ( a->get_framerate() != request.fps ) )
+                        return true;
+                }
+            }
+            return false;
+        }
+    };
+
+    
     std::shared_ptr< device_interface > d500_info::create_device()
     {
         using namespace ds;
 
         if( _group.uvc_devices.empty() )
-            throw std::runtime_error("Depth Camera not found!");
+            throw std::runtime_error( "Depth Camera not found!" );
 
         auto dev_info = std::dynamic_pointer_cast< const d500_info >( shared_from_this() );
 
@@ -266,19 +349,19 @@ public:
         switch( pid )
         {
         case ds::D555_PID:
-            return std::make_shared< d555_device >( dev_info );
+            //return std::make_shared< d555_device >( dev_info );
+            return std::make_shared< d535_device >( dev_info ); // POC
         case ds::D585_PID:
-            return std::make_shared<rs_d585_device>( dev_info );
+            return std::make_shared< rs_d585_device >( dev_info );
         case ds::D585S_PID:
-            return std::make_shared<rs_d585s_device>( dev_info );
+            return std::make_shared< rs_d585s_device >( dev_info );
         default:
             throw std::runtime_error( rsutils::string::from() << "unsupported D500 PID 0x" << hexdump( pid ) );
         }
     }
 
-    std::vector<std::shared_ptr<d500_info>> d500_info::pick_d500_devices(
-        std::shared_ptr<context> ctx,
-        platform::backend_device_group& group)
+    std::vector<std::shared_ptr<d500_info>> d500_info::pick_d500_devices( std::shared_ptr<context> ctx,
+                                                                          platform::backend_device_group& group )
     {
         std::vector<platform::uvc_device_info> chosen;
         std::vector<std::shared_ptr<d500_info>> results;
