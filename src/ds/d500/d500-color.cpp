@@ -209,10 +209,13 @@ namespace librealsense
     
     rs2_intrinsics d500_color_sensor::get_intrinsics(const stream_profile& profile) const
     {
-        return get_d500_intrinsic_by_resolution(
-            *_owner->_color_calib_table_raw,
-            ds::d500_calibration_table_id::rgb_calibration_id,
-            profile.width, profile.height);
+        if( _owner->_color_calib_table_raw.is_initialized() )
+            return get_d500_intrinsic_by_resolution( *_owner->_color_calib_table_raw,
+                                                     ds::d500_calibration_table_id::rgb_calibration_id,
+                                                     profile.width,
+                                                     profile.height );
+        else
+            return {};
     }
 
     stream_profiles d500_color_sensor::init_stream_profiles()
