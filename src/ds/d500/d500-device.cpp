@@ -420,14 +420,14 @@ namespace librealsense
 
         if (hw_mon_over_xu || (!group.usb_devices.size()))
         {
-            _hw_monitor = std::make_shared<hw_monitor_extended_buffers>(
+            _hw_monitor = std::make_shared<extended_hw_monitor>(
                 std::make_shared<locked_transfer>(
                     std::make_shared<command_transfer_over_xu>( *raw_sensor, depth_xu, DS5_HWMONITOR ),
                     raw_sensor), _hw_monitor_response);
         }
         else
         {
-            _hw_monitor = std::make_shared< hw_monitor_extended_buffers >(
+            _hw_monitor = std::make_shared< extended_hw_monitor >(
                 std::make_shared< locked_transfer >( get_backend()->create_usb_device( group.usb_devices.front() ),
                                                      raw_sensor ), _hw_monitor_response);
         }

@@ -680,10 +680,8 @@ std::string dds_device_proxy::get_opcode_string(int opcode) const
     return "";
 }
 
-
-std::vector< uint8_t > dds_device_proxy::send_receive_raw_data( const std::vector< uint8_t > & input )
+std::vector< uint8_t > dds_device_proxy::send_receive_raw_data_chunk( const std::vector< uint8_t > & input ) const
 {
-    // debug_interface function
     auto hexdata = rsutils::string::hexarray::to_string( input );
     json control = json::object( { { realdds::topics::control::key::id, realdds::topics::control::hwm::id },
                                    { realdds::topics::control::hwm::key::data, hexdata } } );
@@ -696,16 +694,35 @@ std::vector< uint8_t > dds_device_proxy::send_receive_raw_data( const std::vecto
 }
 
 
+std::vector< uint8_t > dds_device_proxy::send_receive_raw_data( const std::vector< uint8_t > & input )
+{
+    extended_hwm_interface::buffer_type buffer_type = get_buffer_type( input );
+
+    switch( buffer_type )
+    {
+    case extended_hwm_interface::buffer_type::standard:
+        return send_receive_raw_data_chunk( input );
+    case extended_hwm_interface::buffer_type::extended_receive:
+        return receive_extended_hwm( build_command_from_data( input ) );
+    case extended_hwm_interface::buffer_type::extended_send:
+        send_extended_hwm( build_command_from_data( input ) );
+        break;
+    }
+
+    return std::vector< uint8_t >();
+}
+
+
 std::vector< uint8_t > dds_device_proxy::build_command( uint32_t opcode,
                                                         uint32_t param1,
                                                         uint32_t param2,
                                                         uint32_t param3,
                                                         uint32_t param4,
                                                         uint8_t const * data,
-                                                        size_t dataLength ) const
+                                                        size_t data_length ) const
 {
     // debug_interface function
-    rsutils::string::hexarray hexdata( std::vector< uint8_t >( data, data + dataLength ) );
+    rsutils::string::hexarray hexdata( std::vector< uint8_t >( data, data + data_length ) );
     json control = rsutils::json::object( { { realdds::topics::control::key::id, realdds::topics::control::hwm::id },
                                             { realdds::topics::control::hwm::key::data, hexdata },
                                             { realdds::topics::control::hwm::key::opcode, opcode },
@@ -851,7 +868,7 @@ void dds_device_proxy::device_specific_initialization()
         ds_advanced_mode_base::_amplitude_factor_support = true;
 }
 
-std::vector<std::string> dds_device_proxy::get_recommended_filters_names(const std::shared_ptr<realdds::dds_stream> stream) const
+std::vector<std::string> dds_device_proxy::get_recommended_filters_names( const std::shared_ptr<realdds::dds_stream> stream ) const
 {
     std::vector<std::string> filter_names;
     if (auto depth_stream = std::dynamic_pointer_cast< realdds::dds_depth_stream >(stream))
@@ -873,6 +890,62 @@ std::vector<std::string> dds_device_proxy::get_recommended_filters_names(const s
         filter_names.push_back("Rotation Filter");
     }
     return filter_names;
+}
+
+void dds_device_proxy::send_extended_hwm( const command & cmd ) const
+{
+    command curr_chunk_cmd(cmd.cmd, cmd.param1, cmd.param2, cmd.param3 );
+    uint16_t overall_chunks = extended_hwm_interface::get_number_of_chunks( cmd.data.size() );
+
+    for( int i = 0; i < overall_chunks; ++i )
+    {
+        curr_chunk_cmd.param4 = extended_hwm_interface::compute_chunks_param( overall_chunks, i );  // Chunk number is in param4
+        curr_chunk_cmd.data = extended_hwm_interface::get_data_for_current_iteration( cmd.data, i );
+
+        send_receive_raw_data_chunk( build_data_from_command( curr_chunk_cmd ) );
+    }
+}
+
+std::vector< uint8_t > dds_device_proxy::receive_extended_hwm( const command & cmd ) const
+{
+    std::vector< uint8_t > recv_msg;
+
+    // Send first command with 0/0 on param4, this should get the first chunk withoud knowing the actual table size
+    // Actual size returned as part for the response header and used to calculate the extended loop range
+    auto ans = send_receive_raw_data_chunk( build_data_from_command( cmd ) );
+    uint32_t opcode = *reinterpret_cast< uint32_t const * >( ans.data() );
+    if( opcode != cmd.cmd )
+        return ans;  // Return error value
+    recv_msg.insert( recv_msg.end(), ans.begin(), ans.end() ); // Using debug_interface is expected to return opcode at start of data
+
+    /// Currently only use for extended HWM is for some calibration tables
+    if( recv_msg.size() < sizeof( ds::table_header ) )
+        throw std::runtime_error( rsutils::string::from() << "Table data has invalid size = " << recv_msg.size() );
+
+    ds::table_header * th = reinterpret_cast< ds::table_header * >( ans.data() + sizeof( opcode ) ); // Skip opcode
+    size_t recv_msg_length = sizeof( ds::table_header ) + th->table_size;
+
+    constexpr const uint32_t max_chunk_size = 1024;
+    if( recv_msg_length > max_chunk_size )
+    {
+        command curr_chunk_cmd( cmd.cmd, cmd.param1, cmd.param2, cmd.param3 );
+        uint16_t overall_chunks = extended_hwm_interface::get_number_of_chunks( recv_msg_length );
+
+        // Since we already have the first chunk we start the loop from index 1
+        for( int i = 1; i < overall_chunks; ++i )
+        {
+            // Update param4 of the message and resend 
+            curr_chunk_cmd.param4 = extended_hwm_interface::compute_chunks_param( overall_chunks, i );
+
+            ans = send_receive_raw_data_chunk( build_data_from_command( curr_chunk_cmd ) );
+            opcode = *reinterpret_cast< uint32_t const * >( ans.data() );
+            if( opcode != cmd.cmd )
+                return ans; // Return error value
+            recv_msg.insert( recv_msg.end(), ans.begin() + sizeof( opcode ), ans.end() ); // Skip opcode in subsequent chunks
+        }
+    }
+
+    return recv_msg;
 }
 
 }  // namespace librealsense

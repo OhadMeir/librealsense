@@ -4,7 +4,7 @@
 #pragma once
 
 #include "d500-private.h"
-#include "hw_monitor_extended_buffers.h"
+#include "extended_hwm.h"
 
 #include "core/debug.h"
 #include "global_timestamp_reader.h"
@@ -126,7 +126,7 @@ namespace librealsense
 
         friend class d500_depth_sensor;
 
-        std::shared_ptr<hw_monitor_extended_buffers> _hw_monitor;
+        std::shared_ptr<extended_hw_monitor> _hw_monitor;
         firmware_version _fw_version;
         firmware_version _recommended_fw_version;
         ds::ds_caps _device_capabilities;

@@ -164,8 +164,6 @@ namespace librealsense
                                       uint8_t * bufferToSend,
                                       int & length );
 
-        static command build_command_from_data(const std::vector<uint8_t> data);
-
         virtual std::vector<uint8_t> send( std::vector<uint8_t> const & data ) const;
         virtual std::vector<uint8_t> send( command const & cmd, hwmon_response_type * = nullptr, bool locked_transfer = false ) const;
         static std::vector<uint8_t> build_command(uint32_t opcode,

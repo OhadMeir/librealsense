@@ -11,6 +11,7 @@
 #include <src/device-calibration.h>
 #include <src/eth-config-device.h>
 #include <src/core/advanced_mode.h>
+#include <src/ds/d500/extended_hwm.h>
 
 #include <rsutils/json-fwd.h>
 #include <memory>
@@ -51,6 +52,7 @@ class dds_device_proxy
     , public calibration_change_device
     , public eth_config_device
     , public ds_advanced_mode_base
+    , public extended_hwm_interface
 {
     std::shared_ptr< realdds::dds_device > _dds_dev;
     std::map< std::string, std::vector< std::shared_ptr< stream_profile_interface > > > _stream_name_to_profiles;
@@ -103,8 +105,11 @@ private:
                                           uint32_t param3 = 0,
                                           uint32_t param4 = 0,
                                           uint8_t const * data = nullptr,
-                                          size_t dataLength = 0 ) const override;
+                                          size_t data_length = 0 ) const override;
     std::string get_opcode_string(int opcode) const override;
+
+    // Helper function
+    std::vector< uint8_t > send_receive_raw_data_chunk( const std::vector< uint8_t > & input ) const;
 
     // updatable: unsigned, non-recovery-mode
 private:
@@ -126,6 +131,11 @@ private:
     void device_specific_initialization() override;
     void toggle_advanced_mode( bool enable ) override {}; // Cannot be toggled on DDS devices. Set in device info.
     std::vector<std::string> get_recommended_filters_names(const std::shared_ptr<realdds::dds_stream> stream) const;
+
+    // extended_hwm_interface functionallity
+public:
+    virtual void send_extended_hwm( const command & cmd ) const override;
+    virtual std::vector< uint8_t > receive_extended_hwm( const command & cmd ) const override;
 };
 
 }  // namespace librealsense
