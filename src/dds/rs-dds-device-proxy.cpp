@@ -721,21 +721,7 @@ std::vector< uint8_t > dds_device_proxy::build_command( uint32_t opcode,
                                                         uint8_t const * data,
                                                         size_t data_length ) const
 {
-    // debug_interface function
-    rsutils::string::hexarray hexdata( std::vector< uint8_t >( data, data + data_length ) );
-    json control = rsutils::json::object( { { realdds::topics::control::key::id, realdds::topics::control::hwm::id },
-                                            { realdds::topics::control::hwm::key::data, hexdata },
-                                            { realdds::topics::control::hwm::key::opcode, opcode },
-                                            { realdds::topics::control::hwm::key::param1, param1 },
-                                            { realdds::topics::control::hwm::key::param2, param2 },
-                                            { realdds::topics::control::hwm::key::param3, param3 },
-                                            { realdds::topics::control::hwm::key::param4, param4 },
-                                            { realdds::topics::control::hwm::key::build_command, true } } );
-    json reply;
-    _dds_dev->send_control( control, &reply );
-    if( ! reply.nested( realdds::topics::reply::hwm::key::data ).get_ex( hexdata ) )
-        throw std::runtime_error( "Failed HWM: missing 'data' in reply" );
-    return hexdata.detach();
+    return hw_monitor::build_command( opcode, param1, param2, param3, param4, data, data_length );
 }
 
 
