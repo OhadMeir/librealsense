@@ -187,7 +187,7 @@ std::shared_ptr< matcher > create_default_matcher( std::vector < std::shared_ptr
 
             tags.push_back({ RS2_STREAM_COLOR, -1, 1280, 720, RS2_FORMAT_RGB8, 30, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_DEPTH, -1, 1280, 720, RS2_FORMAT_Z16, 30, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
-            tags.push_back({ RS2_STREAM_INFRARED, -1, 1280, 720, RS2_FORMAT_Y8, 30, profile_tag::PROFILE_TAG_SUPERSET });
+            tags.push_back({ RS2_STREAM_INFRARED, -1, 1280, 720, RS2_FORMAT_RGB8, 30, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_GYRO, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_200, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_ACCEL, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_100, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             
@@ -231,8 +231,8 @@ std::shared_ptr< matcher > create_default_matcher( std::vector < std::shared_ptr
             std::vector<tagged_profile> tags;
 
             tags.push_back({ RS2_STREAM_COLOR, -1, 1280, 720, RS2_FORMAT_RGB8, 30, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
-            tags.push_back({ RS2_STREAM_DEPTH, -1, 1280, 960, RS2_FORMAT_Z16, 30, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
-            tags.push_back({ RS2_STREAM_INFRARED, -1, 1280, 960, RS2_FORMAT_Y8, 30, profile_tag::PROFILE_TAG_SUPERSET });
+            tags.push_back({ RS2_STREAM_DEPTH, -1, 1280, 720, RS2_FORMAT_Z16, 30, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
+            tags.push_back({ RS2_STREAM_INFRARED, -1, 1280, 720, RS2_FORMAT_RGB8, 30, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_GYRO, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_200, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_ACCEL, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_100, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             
@@ -316,7 +316,7 @@ std::shared_ptr< matcher > create_default_matcher( std::vector < std::shared_ptr
             , backend_device( dev_info )
             , d500_device( dev_info )
             , d500_active( dev_info )
-            , d500_color( dev_info, RS2_FORMAT_YUYV )
+            , d500_color( dev_info, RS2_FORMAT_M420 )
             , d500_motion( dev_info )
             , ds_advanced_mode_base()
             , extended_firmware_logger_device( dev_info, d500_device::_hw_monitor, get_firmware_logs_command() )
@@ -365,7 +365,7 @@ std::shared_ptr< matcher > create_default_matcher( std::vector < std::shared_ptr
 
             tags.push_back( { RS2_STREAM_COLOR, -1, 896, 504, RS2_FORMAT_RGB8, 30, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
             tags.push_back( { RS2_STREAM_DEPTH, -1, 896, 504, RS2_FORMAT_Z16, 30, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
-            tags.push_back( { RS2_STREAM_INFRARED, -1, 896, 504, RS2_FORMAT_Y8, 30, profile_tag::PROFILE_TAG_SUPERSET } );
+            tags.push_back( { RS2_STREAM_INFRARED, -1, 896, 504, RS2_FORMAT_RGB8, 30, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
             tags.push_back( { RS2_STREAM_GYRO, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_200, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
             tags.push_back( { RS2_STREAM_ACCEL, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_100, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT } );
 
