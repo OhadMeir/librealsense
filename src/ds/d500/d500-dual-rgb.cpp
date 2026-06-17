@@ -26,7 +26,7 @@ namespace librealsense
 
         // The two M420 RGB cameras arrive on separate pins (USB endpoints), each also advertising identical
         // {w,h,fps,format} M420. Distinguish the color pins from the stereo-imager pin (whose M420 is colored infrared
-        // and must not become a color stream) by the YUY2 companion: color pins pair M420 with YUY2, while the
+        // and must not become a color stream) by the YUY companion: color pins pair M420 with YUY2/YUYV, while the
         // stereo-imager pin uses UYVY/Y8I. This holds across SKUs (the per-pin companions otherwise differ - D585 uses
         // MJPEG/NV12, D555 uses NV12/BYR2). Color pins are then mapped to Color 1 / 2 in ascending pin order.
         raw_depth_sensor->set_stream_id_resolver(
@@ -38,15 +38,16 @@ namespace librealsense
 
                 auto is_color_pin = [&all]( uint32_t pin )
                 {
-                    bool m420 = false, yuy2 = false;
+                    bool m420 = false, yuy = false;
                     for( auto & q : all )
                     {
                         if( q.pin_index != pin )
                             continue;
                         if( q.format == rs_fourcc( 'M', '4', '2', '0' ) ) m420 = true;
-                        if( q.format == rs_fourcc( 'Y', 'U', 'Y', '2' ) ) yuy2 = true;
+                        if( q.format == rs_fourcc( 'Y', 'U', 'Y', '2' ) || q.format == rs_fourcc( 'Y', 'U', 'Y', 'V' ) )
+                            yuy = true;
                     }
-                    return m420 && yuy2;
+                    return m420 && yuy;
                 };
 
                 if( ! is_color_pin( p.pin_index ) )
