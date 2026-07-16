@@ -3402,13 +3402,13 @@ namespace rs2
                         "User needs either to enter the known ground truth or use the get button\n"
                         "with specific target to get the ground truth.");
 
-                //#define UVMAP_CAL
-#ifdef UVMAP_CAL // Disabled due to stability and maturity levels
+                // UV-Mapping needs a color sensor distinct from depth: exclude D421 (no RGB) and D405/D401 (RGB shares the depth imager)
+                bool uvmapping_supported = !val_in_range(pid, { std::string("1155"), std::string("0B5B"), std::string("ABCC") });
                 try
                 {
                     for (auto&& sub2 : subdevices)
                     {
-                        if (sub2->s->is<rs2::color_sensor>())
+                        if (uvmapping_supported && sub2->s->is<rs2::color_sensor>())
                         {
                             if (ImGui::Selectable("UV-Mapping Calibration"))
                             {
@@ -3444,7 +3444,6 @@ namespace rs2
                 {
                     error_message = e.what();
                 }
-#endif //UVMAP_CAL
 
                 //if (ImGui::Selectable("Focal Length Plus Calibration"))
                 //{

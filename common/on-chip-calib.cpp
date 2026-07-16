@@ -539,10 +539,6 @@ namespace rs2
                     if (done)
                         break;
                 }
-
-                // TODO - When implementing UV mapping calibration - should remove from here and handle in process_flow()
-                set_laser_emitter_state( off_value );
-                set_thermal_loop_state( off_value );
             }
             else if (action == RS2_CALIB_ACTION_FL_PLUS_CALIB)
             {
@@ -1298,9 +1294,10 @@ namespace rs2
         }
 
         // Change setting after streaming have started and before actual calibration
-        // Emitter on by default, off for GT/FL calib and for D415 model
+        // Emitter on by default, off for GT/FL/UV-mapping calib and for D415 model
         float emitter_value = on_value;
         if( action == RS2_CALIB_ACTION_FL_CALIB || action == RS2_CALIB_ACTION_TARE_GROUND_TRUTH
+            || action == RS2_CALIB_ACTION_UVMAPPING_CALIB
             || device_name_string.find( "D415" ) != std::string::npos )
             emitter_value = off_value;
         set_laser_emitter_state( emitter_value );
@@ -1620,10 +1617,6 @@ namespace rs2
                 if (ImGui::IsItemHovered())
                     RsImGui::CustomTooltip("%s", "Begin UV-Mapping calibration after adjusting camera position");
                 ImGui::PopStyleColor(2);
-
-                string id = rsutils::string::from() << "Py Px Calibration only##py_px_only" << index;
-                ImGui::SetCursorScreenPos({ float(x + 15), float(y + height - ImGui::GetTextLineHeightWithSpacing() - 32) });
-                ImGui::Checkbox(id.c_str(), &get_manager().py_px_only);
             }
             else if (update_state == RS2_CALIB_STATE_GET_TARE_GROUND_TRUTH)
             {
