@@ -87,6 +87,15 @@ namespace librealsense
         void reset() override;
     };
 
+    // D500 MIPI metadata payload has a 20-byte "HKRM" header rather than a UVC header or D400 MIPI header.
+    class ds_timestamp_reader_from_metadata_mipi_d500 : public ds_timestamp_reader_from_metadata
+    {
+    public:
+        ds_timestamp_reader_from_metadata_mipi_d500(std::unique_ptr<frame_timestamp_reader> backup_timestamp_reader);
+
+        rs2_time_t get_frame_timestamp(const std::shared_ptr<frame_interface>& frame) override;
+    };
+
     class ds_timestamp_reader : public frame_timestamp_reader
     {
         mutable std::map<int, int64_t> counter; // Per-stream software frame counter
