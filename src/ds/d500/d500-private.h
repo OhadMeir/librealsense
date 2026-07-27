@@ -32,6 +32,10 @@ namespace librealsense
         const uint16_t D585_2C_PROTO_PID      = 0x0C07;
         const uint16_t D585_3C_PROTO_PID      = 0x0C08;
         const uint16_t D585_GMSL_PID          = 0xBAAA; // D585 GMSL (MIPI)
+
+        // D500 GMSL/MIPI metadata prepends a 20-byte "MRKH" header vs the 12-byte USB uvc_header.
+        // The intel md container is identical, so MIPI reuses the USB parsers with a shifted base offset.
+        constexpr int d500_mipi_md_header_delta = 8;
    
         enum d500_xu_id : uint8_t // Note: some values may differ from the D400-family depth_xu selectors in ds-private.h.
         {

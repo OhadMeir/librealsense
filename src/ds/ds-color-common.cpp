@@ -97,19 +97,20 @@ namespace librealsense
                 auto_exposure_option));
     }
 
-    void ds_color_common::register_metadata()
+    void ds_color_common::register_metadata( int md_offset_shift )
     {
         _color_ep.register_metadata(RS2_FRAME_METADATA_ACTUAL_FPS, std::make_shared<ds_md_attribute_actual_fps>());
 
         // attributes of md_capture_timing
-        auto md_prop_offset = metadata_raw_mode_offset +
+        const auto md_base = md_offset_shift + metadata_raw_mode_offset;
+        auto md_prop_offset = md_base +
             offsetof(md_rgb_mode, rgb_mode) +
             offsetof(md_rgb_normal_mode, intel_capture_timing);
 
         _color_ep.register_metadata(RS2_FRAME_METADATA_FRAME_COUNTER, make_attribute_parser(&md_capture_timing::frame_counter, md_capture_timing_attributes::frame_counter_attribute, md_prop_offset));
 
         // attributes of md_rgb_control
-        md_prop_offset = metadata_raw_mode_offset +
+        md_prop_offset = md_base +
             offsetof(md_rgb_mode, rgb_mode) +
             offsetof(md_rgb_normal_mode, intel_rgb_control);
 
@@ -117,14 +118,14 @@ namespace librealsense
         _color_ep.register_metadata(RS2_FRAME_METADATA_ACTUAL_EXPOSURE, make_attribute_parser(&md_rgb_control::manual_exp, md_rgb_control_attributes::manual_exp_attribute, md_prop_offset));
 
         // attributes of md_capture_stats
-        md_prop_offset = metadata_raw_mode_offset +
+        md_prop_offset = md_base +
             offsetof(md_rgb_mode, rgb_mode) +
             offsetof(md_rgb_normal_mode, intel_capture_stats);
 
         _color_ep.register_metadata(RS2_FRAME_METADATA_WHITE_BALANCE, make_attribute_parser(&md_capture_stats::white_balance, md_capture_stat_attributes::white_balance_attribute, md_prop_offset));
 
         // attributes of md_rgb_control
-        md_prop_offset = metadata_raw_mode_offset +
+        md_prop_offset = md_base +
             offsetof(md_rgb_mode, rgb_mode) +
             offsetof(md_rgb_normal_mode, intel_rgb_control);
 

@@ -38,7 +38,7 @@ namespace librealsense
             device* owner);
         void register_color_options();
         void register_standard_options();
-        void register_metadata();
+        void register_metadata( int md_offset_shift = 0 );
 
     private:
         std::shared_ptr< uvc_sensor > _raw_color_ep;

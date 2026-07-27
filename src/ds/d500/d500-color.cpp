@@ -230,25 +230,26 @@ namespace librealsense
     {
         auto& color_ep = get_color_sensor();
 
-        auto md_prop_offset = metadata_raw_mode_offset +
+        const auto md_base = ( _is_mipi_device ? ds::d500_mipi_md_header_delta : 0 ) + metadata_raw_mode_offset;
+        auto md_prop_offset = md_base +
             offsetof(md_rgb_mode, rgb_mode) +
             offsetof(md_rgb_normal_mode, intel_rgb_control);
 
         color_ep.register_metadata(RS2_FRAME_METADATA_AUTO_EXPOSURE, make_attribute_parser(&md_rgb_control::ae_mode, md_rgb_control_attributes::ae_mode_attribute, md_prop_offset,
             [](rs2_metadata_type param) { return (param != 1); })); // OFF value via UVC is 1 (ON is 8)
 
-        md_prop_offset = metadata_raw_mode_offset +
+        md_prop_offset = md_base +
             offsetof(md_rgb_mode, rgb_mode) +
             offsetof(md_rgb_normal_mode, intel_capture_stats);
 
         color_ep.register_metadata(RS2_FRAME_METADATA_FRAME_TIMESTAMP, make_attribute_parser(&md_capture_stats::hw_timestamp, md_capture_stat_attributes::hw_timestamp_attribute, md_prop_offset));
 
-        md_prop_offset = metadata_raw_mode_offset +
+        md_prop_offset = md_base +
             offsetof(md_rgb_mode, rgb_mode) +
             offsetof(md_rgb_normal_mode, intel_capture_timing);
 
         // attributes of md_capture_stats
-        auto md_prop_offset_stats = metadata_raw_mode_offset +
+        auto md_prop_offset_stats = md_base +
             offsetof(md_rgb_mode, rgb_mode) +
             offsetof(md_rgb_normal_mode, intel_capture_stats);
 
@@ -256,7 +257,7 @@ namespace librealsense
             make_rs400_sensor_ts_parser(make_attribute_parser(&md_capture_stats::hw_timestamp, md_capture_stat_attributes::hw_timestamp_attribute, md_prop_offset_stats),
                 make_attribute_parser(&md_capture_timing::sensor_timestamp, md_capture_timing_attributes::sensor_timestamp_attribute, md_prop_offset)));
 
-        _ds_color_common->register_metadata();
+        _ds_color_common->register_metadata( _is_mipi_device ? ds::d500_mipi_md_header_delta : 0 );
     }
 
     void d500_color::register_stream_to_extrinsic_group( const stream_interface & stream, uint32_t group_index )
