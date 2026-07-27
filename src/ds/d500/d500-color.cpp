@@ -94,7 +94,11 @@ namespace librealsense
         }
 
         std::unique_ptr< frame_timestamp_reader > ds_timestamp_reader_backup( new ds_timestamp_reader() );
-        std::unique_ptr<frame_timestamp_reader> ds_timestamp_reader_metadata(new ds_timestamp_reader_from_metadata(std::move(ds_timestamp_reader_backup)));
+        // Get frame timestamp from correct offset. MIPI devices has a different metadata header.
+        frame_timestamp_reader * ts_reader_metadata = _is_mipi_device
+            ? static_cast< frame_timestamp_reader * >( new ds_timestamp_reader_from_metadata_mipi_d500( std::move( ds_timestamp_reader_backup ) ) )
+            : static_cast< frame_timestamp_reader * >( new ds_timestamp_reader_from_metadata( std::move( ds_timestamp_reader_backup ) ) );
+        std::unique_ptr< frame_timestamp_reader > ds_timestamp_reader_metadata( ts_reader_metadata );
 
         auto enable_global_time_option = std::shared_ptr<global_time_option>(new global_time_option());
         auto raw_color_ep = std::make_shared< uvc_sensor >(

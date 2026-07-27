@@ -366,7 +366,11 @@ namespace librealsense
         }
 
         std::unique_ptr< frame_timestamp_reader > timestamp_reader_backup( new ds_timestamp_reader() );
-        std::unique_ptr<frame_timestamp_reader> timestamp_reader_metadata(new ds_timestamp_reader_from_metadata(std::move(timestamp_reader_backup)));
+        // Get frame timestamp from correct offset. MIPI devices has a different metadata header.
+        frame_timestamp_reader * ts_reader_metadata = ( ds::d500_mipi_device_pid.count( all_device_infos.front().pid ) > 0 )
+            ? static_cast< frame_timestamp_reader * >( new ds_timestamp_reader_from_metadata_mipi_d500( std::move( timestamp_reader_backup ) ) )
+            : static_cast< frame_timestamp_reader * >( new ds_timestamp_reader_from_metadata( std::move( timestamp_reader_backup ) ) );
+        std::unique_ptr< frame_timestamp_reader > timestamp_reader_metadata( ts_reader_metadata );
         auto enable_global_time_option = std::shared_ptr<global_time_option>(new global_time_option());
         auto raw_depth_ep = std::make_shared<uvc_sensor>("Raw Depth Sensor", std::make_shared<platform::multi_pins_uvc_device>(depth_devices),
             std::unique_ptr<frame_timestamp_reader>(new global_timestamp_reader(std::move(timestamp_reader_metadata), _tf_keeper, enable_global_time_option)), this);

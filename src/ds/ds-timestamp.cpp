@@ -15,6 +15,7 @@
 #include "image.h"
 #include "metadata.h"
 #include "d500/d585s-md.h"
+#include "d500/d500-private.h"
 
 namespace librealsense
 {
@@ -390,6 +391,50 @@ namespace librealsense
     {
         // no counter is provided in the synthetic metadata structure - librealsense::metadata_hid_raw
         _backup_timestamp_reader->reset();
+    }
+
+    // D500 MIPI metadata payload has a 20-byte "HKRM" header rather than a UVC header or D400 MIPI header.
+    // This reader instead takes the frame timestamp from the Intel capture-stats block.
+    // Serves both depth and color - they share the leading capture-timing + capture-stats metadata blocks.
+    ds_timestamp_reader_from_metadata_mipi_d500::ds_timestamp_reader_from_metadata_mipi_d500(std::unique_ptr<frame_timestamp_reader> backup_timestamp_reader)
+    : ds_timestamp_reader_from_metadata(std::move(backup_timestamp_reader)) {}
+
+    rs2_time_t ds_timestamp_reader_from_metadata_mipi_d500::get_frame_timestamp(const std::shared_ptr<frame_interface>& frame)
+    {
+        std::lock_guard<std::recursive_mutex> lock(_mtx);
+
+        auto f = std::dynamic_pointer_cast<librealsense::frame>(frame);
+        if (!f)
+        {
+            LOG_ERROR("Frame is not valid. Failed to downcast to librealsense::frame.");
+            return 0;
+        }
+        size_t pin_index = 0;
+
+        if (frame->get_stream()->get_format() == RS2_FORMAT_Z16)
+            pin_index = 1;
+
+        _has_metadata[pin_index] = has_metadata(frame);
+
+        // Take the frame timestamp from the intel capture-stats HW timestamp (== RS2_FRAME_METADATA_FRAME_TIMESTAMP):
+        // it shares the same clock as the global-time correlation samples via hw_monitor, unlike the HKRM header ISYS timestamp.
+        // Serves both depth and color - they share the leading capture-timing + capture-stats metadata blocks.
+        const auto md_offset = metadata_raw_mode_offset + ds::d500_mipi_md_header_delta;
+        const auto stats_offset = md_offset + sizeof( md_capture_timing );
+        if (_has_metadata[pin_index] && f->additional_data.metadata_size >= stats_offset + sizeof( md_capture_stats ))
+        {
+            auto stats = reinterpret_cast< const md_capture_stats * >( f->additional_data.metadata_blob.data() + stats_offset );
+            return (double)( stats->hw_timestamp ) * MICROSEC_TO_MILLISEC;
+        }
+        else
+        {
+            if (!one_time_note)
+            {
+                LOG_INFO("UVC metadata payloads not available. Please refer to the installation chapter for details.");
+                one_time_note = true;
+            }
+            return _backup_timestamp_reader->get_frame_timestamp(frame);
+        }
     }
 
     ds_timestamp_reader::ds_timestamp_reader()
