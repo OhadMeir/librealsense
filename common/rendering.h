@@ -715,6 +715,8 @@ namespace rs2
                 //    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width / 2, height / 2, 0, GL_RGB, GL_UNSIGNED_BYTE, rgb.data());
                 //}
                 //break;
+                case RS2_FORMAT_H264:
+                    break;  // a bitstream frame holds fewer than width*height bytes - nothing to upload
                 default:
                 {
                     memset((void*)data, 0, height*width);

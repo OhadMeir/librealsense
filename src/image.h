@@ -8,6 +8,8 @@ namespace librealsense
 {
     size_t           get_image_size                 (int width, int height, rs2_format format);
     int              get_image_bpp                  (rs2_format format);
+    // True for bitstream formats whose frames are variable-length, not width*height*bpp
+    bool             is_compressed_format           (rs2_format format);
 
     template<class SOURCE, class SPLIT_A, class SPLIT_B> void split_frame( uint8_t * const dest[], int count, const SOURCE * source, SPLIT_A split_a, SPLIT_B split_b)
     {

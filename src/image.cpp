@@ -59,6 +59,11 @@ namespace librealsense
         }
     }
 
+    bool is_compressed_format(rs2_format format)
+    {
+        return format == RS2_FORMAT_MJPEG || format == RS2_FORMAT_H264;
+    }
+
 }
 
 #pragma pack(pop)

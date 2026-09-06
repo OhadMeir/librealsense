@@ -27,6 +27,7 @@
 #include <src/image.h>
 
 #include <src/proc/color-formats-converter.h>
+#include <src/proc/h264-decoder.h>
 #include <src/proc/y16-10msb-to-y16.h>
 #include <src/proc/rotation-filter.h>
 
@@ -128,6 +129,7 @@ void dds_sensor_proxy::register_converters()
     std::set< int > y8_indexes;
     std::set< int > y16_indexes;
     std::set< int > jpeg_indexes;
+    std::set< int > h264_indexes;
     for( auto & stream : streams() )
     {
         for( auto & profile : stream.second->profiles() )
@@ -139,6 +141,8 @@ void dds_sensor_proxy::register_converters()
                     y16_indexes.insert( stream.first.index );
                 else if( vsp->encoding().to_rs2() == RS2_FORMAT_MJPEG )
                     jpeg_indexes.insert( stream.first.index );
+                else if( vsp->encoding().to_rs2() == RS2_FORMAT_H264 )
+                    h264_indexes.insert( stream.first.index );
         }
     }
 
@@ -167,6 +171,17 @@ void dds_sensor_proxy::register_converters()
             target_profiles.push_back( { RS2_FORMAT_RGB8, RS2_STREAM_COLOR, index } );
         _formats_converter.register_converter( { { RS2_FORMAT_MJPEG, RS2_STREAM_COLOR } }, target_profiles,
                                                []() { return std::make_shared< mjpeg_converter >( RS2_FORMAT_RGB8 ); } );
+    }
+
+    // Without a platform decoder we register nothing, leaving H264 profiles unexposed rather than
+    // advertising profiles that cannot stream
+    if( h264_indexes.size() > 0 && h264_decoder::is_supported() )
+    {
+        std::vector< stream_profile > target_profiles;
+        for( int index : h264_indexes )
+            target_profiles.push_back( { RS2_FORMAT_RGB8, RS2_STREAM_COLOR, index } );
+        _formats_converter.register_converter( { { RS2_FORMAT_H264, RS2_STREAM_COLOR } }, target_profiles,
+                                               []() { return std::make_shared< h264_decoder >( RS2_FORMAT_RGB8 ); } );
     }
 
     // Depth
@@ -404,9 +419,12 @@ void dds_sensor_proxy::handle_video_data( std::vector< uint8_t > && buffer,
     auto width = vid_profile->get_width();
     auto stride = static_cast< int >(height > 0 ? data.raw_size / height : data.raw_size );
     auto expected_bpp = get_image_bpp(vid_profile->get_format()) / 8;
-    auto expected_size = height * width * expected_bpp;
-    if( data.raw_size != expected_size )
-        throw invalid_value_exception( rsutils::string::from() << "Received frame with unexpected size " << data.raw_size << ", expected " << expected_size );
+    if( ! is_compressed_format( vid_profile->get_format() ) )  // a compressed frame is variable-length
+    {
+        auto expected_size = height * width * expected_bpp;
+        if( data.raw_size != expected_size )
+            throw invalid_value_exception( rsutils::string::from() << "Received frame with unexpected size " << data.raw_size << ", expected " << expected_size );
+    }
 
     auto new_frame_interface = allocate_new_video_frame( vid_profile, stride, expected_bpp, std::move( data ) );    
     if( ! new_frame_interface )
