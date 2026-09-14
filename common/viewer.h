@@ -250,6 +250,7 @@ namespace rs2
                                                const rs2_extrinsics & depth_to_color,
                                                const rs2::rect &    depth_frame_rect );
         void process_object_detection_frames( std::map< int, rs2::frame > & last_frames );
+        int od_color_stream_index( std::shared_ptr< subdevice_model > const & dev ) const;
 
         void check_permissions();
         void hide_common_options();

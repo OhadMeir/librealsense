@@ -32,6 +32,7 @@
 #include <regex>
 #include <algorithm>
 #include <fstream>
+#include <limits>
 
 namespace rs2
 {
@@ -2179,8 +2180,9 @@ namespace rs2
                 }
             }
 
-            // Detection overlays only make sense on the color stream; bbox coords are in color-frame space.
-            if( stream_mv.profile.stream_type() == RS2_STREAM_COLOR )
+            // Detection overlays only make sense on the color stream object detection runs on; bbox coords are in that stream's frame space.
+            if( stream_mv.profile.stream_type() == RS2_STREAM_COLOR
+                && stream_mv.profile.stream_index() == od_color_stream_index( stream_mv.dev ) )
             {
                 static std::vector< std::pair< ImColor, bool > > colors =
                 {
@@ -3963,6 +3965,17 @@ namespace rs2
             objects = it->second.dev->detected_objects;
     }
 
+    // Object detection runs on a single color imager: dual-RGB firmware reports boxes for the lower-indexed
+    // color stream, and a device with one color sensor only has index 0.
+    int viewer_model::od_color_stream_index( std::shared_ptr< subdevice_model > const & dev ) const
+    {
+        int index = std::numeric_limits< int >::max();
+        for( auto const & s : streams )
+            if( s.second.dev == dev && s.second.profile.stream_type() == RS2_STREAM_COLOR )
+                index = std::min( index, s.second.profile.stream_index() );
+        return index;
+    }
+
     rs2::rect viewer_model::project_color_bbox_to_depth( const rs2::rect &     color_bbox,
                                                          const uint16_t *      depth_data,
                                                          float                 depth_scale,
@@ -4004,16 +4017,18 @@ namespace rs2
             {
                 odf = frame.as< rs2::object_detection_frame >();
             }
-            else if( stype == RS2_STREAM_COLOR && ! cf )
+            else if( stype == RS2_STREAM_COLOR && ( ! cf || frame.get_profile().stream_index() < cf.get_profile().stream_index() ) )
             {
                 cf = frame.as< rs2::video_frame >();
-                get_frame_objects_container( frame, objects );
             }
             else if( stype == RS2_STREAM_DEPTH && ! df )
             {
                 df = frame.as< rs2::depth_frame >();
             }
         }
+
+        if( cf )
+            get_frame_objects_container( cf, objects );
 
         // Without a color sensor we have nowhere to draw
         if( ! objects )
