@@ -162,6 +162,22 @@ namespace librealsense
     constexpr uint8_t D585_2C_RGB_PU_UNIT_ID  = 0x07;
     constexpr int     D585_2C_RGB_PU_KS_NODE = 6;
 
+    // The PU does not publish the same set on every platform - e.g. backlight compensation missing over GMSL.
+    // An unpublished control reads back as a degenerate range (V4L2) or throws (WMF).
+    static bool is_control_published( const option & opt, rs2_option id )
+    {
+        try
+        {
+            auto range = opt.get_range();
+            return ! ( range.min == 0.f && range.max == 0.f && range.def == 0.f && range.step == 0.f );
+        }
+        catch( const std::exception & e )
+        {
+            LOG_DEBUG( "Dual-color RGB control " << id << " not published: " << e.what() );
+            return false;
+        }
+    }
+
     void d500_dual_color::register_color_options( std::shared_ptr< const d500_info > const & dev_info )
     {
         // Route RGB controls via the RGB PU: node-based routing on WMF, a dedicated raw sensor on V4L2.
@@ -177,33 +193,43 @@ namespace librealsense
             return std::make_shared<uvc_pu_option>(raw_ep, option, rgb_pu);
         };
 
-        color_ep.register_option(RS2_OPTION_BACKLIGHT_COMPENSATION,
-                                 make_rgb_option(RS2_OPTION_BACKLIGHT_COMPENSATION));
-        color_ep.register_option(RS2_OPTION_BRIGHTNESS, make_rgb_option(RS2_OPTION_BRIGHTNESS));
-        color_ep.register_option(RS2_OPTION_CONTRAST, make_rgb_option(RS2_OPTION_CONTRAST));
-        color_ep.register_option(RS2_OPTION_SATURATION, make_rgb_option(RS2_OPTION_SATURATION));
-        color_ep.register_option(RS2_OPTION_GAMMA, make_rgb_option(RS2_OPTION_GAMMA));
-        color_ep.register_option(RS2_OPTION_SHARPNESS, make_rgb_option(RS2_OPTION_SHARPNESS));
-        color_ep.register_option(RS2_OPTION_HUE, make_rgb_option(RS2_OPTION_HUE));
+        auto register_if_published = [&color_ep]( rs2_option id, std::shared_ptr< option > opt )
+        {
+            // Registering unpublished would only add a dead control, verify befor registering.
+            if( ! is_control_published( *opt, id ) )
+                return;
+            color_ep.register_option( id, opt );
+        };
+
+        for( auto id : { RS2_OPTION_BACKLIGHT_COMPENSATION, RS2_OPTION_BRIGHTNESS, RS2_OPTION_CONTRAST,
+                         RS2_OPTION_SATURATION, RS2_OPTION_GAMMA, RS2_OPTION_SHARPNESS, RS2_OPTION_HUE } )
+            register_if_published( id, make_rgb_option( id ) );
 
         std::map<float, std::string> power_line_descriptions = {
             { 0.f, "Disabled" },
             { 1.f, "50Hz" },
             { 2.f, "60Hz" }
         };
-        color_ep.register_option(
-            RS2_OPTION_POWER_LINE_FREQUENCY,
-            std::make_shared<uvc_pu_option>(raw_ep,
-                                            RS2_OPTION_POWER_LINE_FREQUENCY,
-                                            rgb_pu,
-                                            power_line_descriptions));
+        register_if_published( RS2_OPTION_POWER_LINE_FREQUENCY,
+                               std::make_shared<uvc_pu_option>(raw_ep,
+                                                               RS2_OPTION_POWER_LINE_FREQUENCY,
+                                                               rgb_pu,
+                                                               power_line_descriptions));
 
         auto white_balance = make_rgb_option(RS2_OPTION_WHITE_BALANCE);
-        auto auto_white_balance = make_rgb_option(RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE);
-        color_ep.register_option(RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, auto_white_balance);
-        color_ep.register_option(
-            RS2_OPTION_WHITE_BALANCE,
-            std::make_shared<auto_disabling_control>(white_balance, auto_white_balance));
+        if( is_control_published( *white_balance, RS2_OPTION_WHITE_BALANCE ) )
+        {
+            // Without auto white balance the manual control is still needed, just not wrapped in the auto-disabling proxy.
+            auto auto_white_balance = make_rgb_option( RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE );
+            if( is_control_published( *auto_white_balance, RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE ) )
+            {
+                color_ep.register_option( RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, auto_white_balance );
+                color_ep.register_option( RS2_OPTION_WHITE_BALANCE,
+                                          std::make_shared< auto_disabling_control >( white_balance, auto_white_balance ) );
+            }
+            else
+                color_ep.register_option( RS2_OPTION_WHITE_BALANCE, white_balance );
+        }
     }
 
     std::shared_ptr< uvc_sensor > d500_dual_color::pick_rgb_pu_raw_endpoint(
