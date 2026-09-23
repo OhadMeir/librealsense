@@ -257,7 +257,8 @@ namespace rs2
 
         profile = p;
         ui_key = p.unique_id();  // viewer_model::begin_stream overrides these for a split stream
-        passive = split = false;
+        split = secondary_view = false;
+        view_label.clear();
         texture->colorize = d->depth_colorizer;
         texture->yuy2rgb = d->yuy2rgb;
         texture->m420_to_rgb = d->m420_to_rgb;
@@ -548,10 +549,10 @@ namespace rs2
             std::string dev_name = dev->dev.get_info(RS2_CAMERA_INFO_NAME);
             std::string dev_serial = dev->dev.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
             std::string sensor_name = dev->s->get_info(RS2_CAMERA_INFO_NAME);
-            // A split stream fills two tiles off one profile, so the exposure class has to tell them apart.
+            // A split stream fills two tiles off one profile, so the label is what tells them apart.
             std::string stream_name = profile.stream_name();
-            if( split )
-                stream_name += passive ? " Passive" : " Active";
+            if( ! view_label.empty() )
+                stream_name += " " + view_label;
             std::string stream_index_str;
 
             tooltip = rsutils::string::from() << dev_name << " s.n:" << dev_serial << " | " << sensor_name << ", " << stream_name << stream_index_str << " stream";

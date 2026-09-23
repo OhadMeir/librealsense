@@ -39,6 +39,14 @@ namespace rs2
 
         std::shared_ptr<rs2::filter> get_block() { return _block; }
 
+        // Second instance of the same filter, for the secondary view of a split stream. The two kinds of
+        // frame differ - under Alternating Passive Depth, laser-on and laser-off exposures have different
+        // fill and noise - so one filter's temporal history would blend them; an instance each keeps the
+        // histories apart. The UI drives only the primary block, so options are mirrored before each use.
+        void set_secondary_block( std::shared_ptr< rs2::filter > block );
+        bool has_secondary() const { return _secondary_block != nullptr; }
+        rs2::frame invoke_secondary( rs2::frame f ) const;
+
         // Access the UI model for one of this block's options (nullptr if not present).
         // Used by the viewer UI tests to drive/read post-processing filter controls.
         option_model * get_option_model( rs2_option opt );
@@ -70,6 +78,10 @@ namespace rs2
     protected:
         bool _enabled = true;
         std::shared_ptr<rs2::filter> _block;
+        std::shared_ptr<rs2::filter> _secondary_block;
+        // Gathered once with the secondary block: a processing block's set of options is fixed, so asking
+        // for it per frame would only allocate a list to walk it.
+        std::vector< rs2_option > _mirrored_options;
         std::map< rs2_option, option_model > _options_id_to_model;
         std::string _name;
         std::string _full_name;

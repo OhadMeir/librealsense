@@ -148,14 +148,23 @@ namespace rs2
 
         bool is_option_skipped(rs2_option opt) const;
 
+        // True only for a frame belonging to the secondary view of a split stream. A stream that is not
+        // split never reports true - including in Full Passive, which delivers just the one kind.
+        bool is_secondary_view(const rs2::frame& f);
+
         void disable_measurements();
 
         std::mutex streams_mutex;
         std::map<int, stream_model> streams;
         std::map<int, int> streams_origin;
-        // Alternating Passive Depth interleaves laser-on and laser-off frames on one profile, so each
-        // depth/IR stream gets a second tile for the passive class - mapped here from the stream's uid.
-        std::map<int, int> passive_streams;
+        // A stream whose frames come in two kinds that must not be mixed is shown as two tiles off one
+        // profile; this maps the stream's uid to the key of its secondary tile. The only case today is
+        // Alternating Passive Depth, whose laser-on and laser-off exposures interleave on one stream.
+        std::map<int, int> split_views;
+        // Mirrors split_views being non-empty. The frame path asks per frame whether a stream is split,
+        // and almost never is - so the common answer comes back without taking streams_mutex, which the
+        // UI thread holds across texture uploads.
+        std::atomic<bool> any_split_view{ false };
         bool fullscreen = false;
         stream_model* selected_stream = nullptr;
         // When true, stream tiles can be re-arranged by dragging one onto another (toggled from the top bar)

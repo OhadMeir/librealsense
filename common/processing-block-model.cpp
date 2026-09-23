@@ -8,6 +8,8 @@
 #include "control-section.h"
 #include "viewer.h"
 
+#include <rsutils/easylogging/easyloggingpp.h>
+
 
 namespace rs2
 {
@@ -112,6 +114,39 @@ namespace rs2
             return config_file::instance().get(key.c_str());
         }
         return enable;
+    }
+
+    void processing_block_model::set_secondary_block( std::shared_ptr< rs2::filter > block )
+    {
+        _secondary_block = std::move( block );
+        _mirrored_options.clear();
+        if( ! _secondary_block )
+            return;
+
+        for( auto opt : _block->get_supported_options() )
+            if( ! _block->is_option_read_only( opt ) )
+                _mirrored_options.push_back( opt );
+    }
+
+    // The UI writes options to the primary block only, and a block can decide should_process() from an
+    // option - stream_filter_processing_block does - so the values have to be carried across before the
+    // secondary one runs. Compared first: a redundant set_option resets a filter's internal state.
+    rs2::frame processing_block_model::invoke_secondary( rs2::frame f ) const
+    {
+        for( auto opt : _mirrored_options )
+        {
+            try
+            {
+                auto value = _block->get_option( opt );
+                if( _secondary_block->get_option( opt ) != value )
+                    _secondary_block->set_option( opt, value );
+            }
+            catch( const rs2::error & e )
+            {
+                LOG_WARNING( "Could not mirror " << _name << " option " << opt << ": " << e.what() );
+            }
+        }
+        return _secondary_block->process( f );
     }
 
     void save_processing_block_to_config_file(const char* name,

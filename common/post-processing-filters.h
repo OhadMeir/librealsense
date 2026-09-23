@@ -93,6 +93,7 @@ namespace rs2
         void map_id_frame_to_frame(rs2::frame first, rs2::frame second);
 
         rs2::frame apply_filters(rs2::frame f, const rs2::frame_source& source);
+        bool is_secondary_view(const rs2::frame& f);
         std::shared_ptr<subdevice_model> get_frame_origin(const rs2::frame& f);
 
         void zero_first_pixel(const rs2::frame& f);

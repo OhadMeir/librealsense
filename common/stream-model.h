@@ -117,10 +117,14 @@ namespace rs2
         frame_metadata      frame_md;
         bool                capturing_roi       = false;    // active modification of roi
         std::shared_ptr<subdevice_model> dev;
-        // Tile fed by the laser-off frames of a stream split by Alternating Passive Depth.
-        bool passive = false;
-        // Set on both tiles of a split stream, so each title can name the class it shows.
+        // Some streams carry frames of two kinds that must not be mixed, and are shown as two tiles off
+        // one profile - today that is Alternating Passive Depth, whose laser-on and laser-off exposures
+        // interleave on the depth and IR streams. Set on both tiles; `secondary_view` marks the second.
         bool split = false;
+        bool secondary_view = false;
+        // Names the kind this tile shows, appended to the stream name ("Active" / "Passive"). Empty when
+        // the stream is not split.
+        std::string view_label;
         // Key of this tile in viewer_model::streams. Two tiles can share one profile, so widget ids
         // and per-tile overlays are identified by this rather than by the profile.
         int ui_key = 0;

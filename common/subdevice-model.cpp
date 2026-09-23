@@ -280,12 +280,19 @@ namespace rs2
         }
 #endif
 
-        for (auto&& f : s->get_recommended_filters())
+        // A second, independent set of the same filters, for the secondary view of a split stream -
+        // the two kinds of frame must not share a filter's temporal history.
+        auto recommended = s->get_recommended_filters();
+        auto secondaries = s->get_recommended_filters();
+        for (size_t i = 0; i < recommended.size(); ++i)
         {
+            auto&& f = recommended[i];
             auto shared_filter = std::make_shared<filter>(f);
             auto model = std::make_shared<processing_block_model>(
                 this, shared_filter->get_info(RS2_CAMERA_INFO_NAME), shared_filter,
                 [=](rs2::frame f) { return shared_filter->process(f); }, error_message);
+            if (i < secondaries.size())
+                model->set_secondary_block(std::make_shared<filter>(secondaries[i]));
 
             if (shared_filter->is<hole_filling_filter>())
                 model->enable(false);

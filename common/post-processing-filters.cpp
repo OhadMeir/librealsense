@@ -6,6 +6,17 @@
 
 using namespace rs2;
 
+// A frameset holds one kind of frame, so its depth frame speaks for the whole set.
+bool post_processing_filters::is_secondary_view(const rs2::frame& f)
+{
+    if (auto set = f.as<rs2::frameset>())
+    {
+        auto depth = set.get_depth_frame();
+        return depth && viewer.is_secondary_view(depth);
+    }
+    return viewer.is_secondary_view(f);
+}
+
 rs2::frame post_processing_filters::apply_filters(rs2::frame f, const rs2::frame_source& source)
 {
     std::vector<rs2::frame> frames;
@@ -29,6 +40,10 @@ rs2::frame post_processing_filters::apply_filters(rs2::frame f, const rs2::frame
             subdevices.insert(sub);
     }
 
+    // The secondary view of a split stream runs through its own filter instances, so a shared temporal
+    // history cannot blend the two kinds of frame together.
+    bool const secondary = is_secondary_view(f);
+
     for (auto sub : subdevices)
     {
         if (!sub->post_processing_enabled)
@@ -36,7 +51,7 @@ rs2::frame post_processing_filters::apply_filters(rs2::frame f, const rs2::frame
 
         for (auto&& pp : sub->post_processing)
             if (pp->is_enabled())
-                res = pp->invoke(res);
+                res = ( secondary && pp->has_secondary() ) ? pp->invoke_secondary(res) : pp->invoke(res);
     }
 
     return res;

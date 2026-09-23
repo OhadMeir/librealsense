@@ -363,7 +363,7 @@ namespace rs2
         int i = 0;
         for (auto&& s : streams)
         {
-            if (s.second.is_stream_visible() && ! s.second.passive &&
+            if (s.second.is_stream_visible() && ! s.second.secondary_view &&
                 (s.second.profile.stream_type() == RS2_STREAM_COLOR ||
                  s.second.profile.stream_type() == RS2_STREAM_INFRARED ||
                  s.second.profile.stream_type() == RS2_STREAM_CONFIDENCE ||
@@ -523,7 +523,7 @@ namespace rs2
             i = 0;
             for (auto&& s : streams)
             {
-                if (s.second.is_stream_visible() && ! s.second.passive &&
+                if (s.second.is_stream_visible() && ! s.second.secondary_view &&
                     s.second.texture->get_last_frame() &&
                     s.second.profile.stream_type() == RS2_STREAM_DEPTH)
                 {
@@ -1066,7 +1066,8 @@ namespace rs2
             }
         }
         for (auto&& i : streams_to_remove) {
-            passive_streams.erase(i);
+            split_views.erase(i);
+            any_split_view = ! split_views.empty();
 
             if(selected_depth_source_uid == i)
             {
@@ -1369,7 +1370,7 @@ namespace rs2
     {
         if (!sm) return {};
         return std::to_string(static_cast<int>(sm->profile.stream_type())) + "_" +
-               std::to_string(sm->profile.stream_index()) + (sm->passive ? "_p" : "");
+               std::to_string(sm->profile.stream_index()) + (sm->secondary_view ? "_2" : "");
     }
 
     // The tile title bar is drawn in the reserved strip above the frame rect. The drag grab
@@ -4028,18 +4029,25 @@ namespace rs2
         mouse.prev_cursor = mouse.cursor;
     }
 
-    // Keys the passive tile of a split stream; kept clear of the unique ids the SDK hands out.
-    static const int PASSIVE_STREAM_KEY_OFFSET = 0x10000000;
+    // Keys the secondary view of a split stream; kept clear of the unique ids the SDK hands out.
+    static const int SECONDARY_VIEW_KEY_OFFSET = 0x10000000;
 
-    // Only Alternating Passive Depth interleaves the two exposure classes on one profile. Full Passive
-    // delivers passive frames alone, so they stay on the stream's own tile.
-    static bool splits_passive_depth( const std::shared_ptr<subdevice_model>& d, const rs2::stream_profile& p )
+    // Whether a stream carries two kinds of frame that have to be viewed apart, and what to call each.
+    // The only case today is Alternating Passive Depth, where the firmware interleaves laser-on and
+    // laser-off exposures on one depth or IR profile. Full Passive delivers one kind, so it is not split.
+    static bool splits_into_views( const std::shared_ptr<subdevice_model>& d, const rs2::stream_profile& p,
+                                   std::string & primary_label, std::string & secondary_label )
     {
         if( p.stream_type() != RS2_STREAM_DEPTH && p.stream_type() != RS2_STREAM_INFRARED )
             return false;
         if( ! d || ! d->s || ! d->s->supports( RS2_OPTION_PASSIVE_DEPTH_MODE ) )
             return false;
-        return d->s->get_option( RS2_OPTION_PASSIVE_DEPTH_MODE ) == RS2_PASSIVE_DEPTH_MODE_ALTERNATING;
+        if( d->s->get_option( RS2_OPTION_PASSIVE_DEPTH_MODE ) != RS2_PASSIVE_DEPTH_MODE_ALTERNATING )
+            return false;
+
+        primary_label = "Active";
+        secondary_label = "Passive";
+        return true;
     }
 
     void viewer_model::begin_stream(std::shared_ptr<subdevice_model> d, rs2::stream_profile p)
@@ -4050,18 +4058,22 @@ namespace rs2
             active.begin_stream(d, p, *this);
             ppf.frames_queue.emplace(p.unique_id(), rs2::frame_queue(5));
 
-            if( splits_passive_depth( d, p ) )
+            std::string primary_label, secondary_label;
+            if( splits_into_views( d, p, primary_label, secondary_label ) )
             {
-                int const passive_key = p.unique_id() + PASSIVE_STREAM_KEY_OFFSET;
-                auto & passive = streams[passive_key];
-                passive.begin_stream( d, p, *this );
-                passive.passive = passive.split = true;
-                passive.ui_key = passive_key;
+                int const secondary_key = p.unique_id() + SECONDARY_VIEW_KEY_OFFSET;
+                auto & secondary = streams[secondary_key];
+                secondary.begin_stream( d, p, *this );
+                secondary.split = secondary.secondary_view = true;
+                secondary.ui_key = secondary_key;
+                secondary.view_label = secondary_label;
                 active.split = true;
-                passive_streams[p.unique_id()] = passive_key;
+                active.view_label = primary_label;
+                split_views[p.unique_id()] = secondary_key;
             }
             else
-                passive_streams.erase( p.unique_id() );  // a mode change may have left the last run's split behind
+                split_views.erase( p.unique_id() );  // a mode change may have left the last run's split behind
+            any_split_view = ! split_views.empty();
         }
 
         // Starting post processing filter rendering thread
@@ -4134,13 +4146,15 @@ namespace rs2
         auto index = f.get_profile().unique_id();
         auto mapped_index = streams_origin[index];
 
-        // While the stream is split the point cloud follows the active class; Full Passive is not split,
-        // so its passive frames still feed the 3D view. Reached from the frame callback and the
-        // post-processing thread, so the lookup needs the lock begin_stream writes under.
+        // The point cloud follows the primary view of a split stream. A stream that is not split is
+        // unaffected - including in Full Passive, where its one kind of frame still feeds the 3D view.
+        // Reached from the frame callback and the post-processing thread, so the lookup needs the lock
+        // begin_stream writes under.
         bool split = false;
+        if( any_split_view )
         {
             std::lock_guard< std::mutex > lock( streams_mutex );
-            split = passive_streams.count( index ) || passive_streams.count( mapped_index );
+            split = split_views.count( index ) || split_views.count( mapped_index );
         }
         if( split && is_passive_frame( f ) )
             return false;
@@ -4164,11 +4178,30 @@ namespace rs2
             return nullptr;
 
         int key = stream_origin_iter->second;
-        auto passive_iter = passive_streams.find( key );
-        if( passive_iter != passive_streams.end() && streams.count( passive_iter->second ) && is_passive_frame( f ) )
-            key = passive_iter->second;
+        auto secondary = split_views.find( key );
+        if( secondary != split_views.end() && streams.count( secondary->second ) && is_passive_frame( f ) )
+            key = secondary->second;
 
         return streams[key].upload_frame(std::move(f));
+    }
+
+    // Which view a frame of a split stream belongs to. The test is specific to what was split - for
+    // Alternating Passive Depth it is the emitter state the frame was captured with.
+    bool viewer_model::is_secondary_view(const rs2::frame& f)
+    {
+        if( ! any_split_view )
+            return false;
+
+        auto index = f.get_profile().unique_id();
+        {
+            std::lock_guard< std::mutex > lock( streams_mutex );
+            auto origin = streams_origin.find( index );
+            bool const split = split_views.count( index )
+                            || ( origin != streams_origin.end() && split_views.count( origin->second ) );
+            if( ! split )
+                return false;
+        }
+        return is_passive_frame( f );
     }
 
     // Depth and IR frames report the emitter state they were captured with; laser off is a passive frame.
@@ -4585,7 +4618,7 @@ namespace rs2
 
         for (auto&& s : streams)
         {
-            if (s.second.is_stream_visible() && ! s.second.passive &&
+            if (s.second.is_stream_visible() && ! s.second.secondary_view &&
                 s.second.profile.stream_type() == RS2_STREAM_DEPTH)
             {
                 auto stream_origin_iter = streams_origin.find(s.second.profile.unique_id());
