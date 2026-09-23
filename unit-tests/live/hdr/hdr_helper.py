@@ -106,12 +106,12 @@ def perform_manual_hdr_test(hdr_config, test_title, resolution=(640, 480)):
 
     log.debug("Batch size: %s", batch_size)
     batches_needed = 4
+    max_discarded_batches = 4  # extra budget to discard batches hit by a dropped frame (within frame-drop KPI) and resync
     batches_done = 0
     batch_frames = 0
     in_batch = False  # batches start on seq_id 0 so a dropped frame can't shift the window
     prev_frame_number = None
-    # extra budget lets us discard a batch hit by a dropped frame (within frame-drop KPI) and resync
-    for i in range(0, batch_size * (batches_needed + 4)):
+    for i in range(0, batch_size * (batches_needed + max_discarded_batches)):
         if batches_done == batches_needed:
             break
         data = pipe.wait_for_frames()
