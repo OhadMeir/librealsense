@@ -235,7 +235,7 @@ namespace librealsense
         if( _passive_depth_mode )
         {
             _passive_depth_mode->set_ae_policy_option( ae_policy );
-            // Start in Full Passive Depth; a device already streaming elsewhere keeps its current mode.
+            // Start in Full Passive Depth. A failure (e.g. streaming elsewhere) must not block device creation.
             try
             {
                 _passive_depth_mode->set( RS2_PASSIVE_DEPTH_MODE_FULL );
