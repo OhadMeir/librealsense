@@ -194,6 +194,10 @@ namespace librealsense
             return device::contradicts( a, same_group );
         }
 
+        // On Windows, starting the IMU after the depth sensor was opened stops one of its video streams unless all
+        // run at the 1280x720@30 default, so each sensor starts before the next one opens. Linux streams fine either way.
+        bool start_sensors_when_opened() const override { return true; }
+
         std::vector<tagged_profile> get_profiles_tags() const override
         {
             std::vector<tagged_profile> tags;
