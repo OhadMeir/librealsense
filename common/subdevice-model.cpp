@@ -526,6 +526,7 @@ namespace rs2
             auto default_resolution = std::make_pair(1280, 720);
             auto default_fps = 30;
             std::map<int, int> def_fps_per_stream;   // per-stream default-profile FPS (by unique_id)
+            std::map<rs2_stream, std::pair<int, int>> def_res_per_stream;   // seeds the split resolution UI
             for (auto&& profile : sensor_profiles)
             {
                 std::stringstream res;
@@ -534,6 +535,7 @@ namespace rs2
                     if (profile.is_default())
                     {
                         default_resolution = std::pair<int, int>(vid_prof.width(), vid_prof.height());
+                        def_res_per_stream[profile.stream_type()] = default_resolution;
                         default_fps = profile.fps();
 
                         if (is_rgb_camera)
@@ -646,7 +648,8 @@ namespace rs2
                 ui.is_multiple_resolutions = true;
                 for (auto res_array : resolutions_per_stream)
                 {
-                    ui.selected_stream_to_res[res_array.first] = default_resolution;
+                    auto def = def_res_per_stream.find(res_array.first);
+                    ui.selected_stream_to_res[res_array.first] = def != def_res_per_stream.end() ? def->second : default_resolution;
                 }
             }
             else
