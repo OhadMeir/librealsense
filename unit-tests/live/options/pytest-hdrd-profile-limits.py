@@ -132,6 +132,40 @@ def test_unsupported_profiles_rejected(filters, mode):
             sensor.open(profile)
 
 
+def _unsupported_depth_ir(sensor, mode):
+    """An unsupported Depth profile with the IR 1 profile of the same size and FPS - RSDEV-15484 is Depth+IR"""
+    _, unsupported = _profiles_by_support(sensor, mode)
+    for depth in unsupported:
+        d = depth.as_video_stream_profile()
+        ir = next((p for p in sensor.get_stream_profiles()
+                   if p.stream_type() == rs.stream.infrared and p.stream_index() == 1 and p.fps() == depth.fps()
+                   and p.as_video_stream_profile().width() == d.width()
+                   and p.as_video_stream_profile().height() == d.height()), None)
+        if ir:
+            return [depth, ir]
+    pytest.skip(f"{mode}: no unsupported Depth profile with matching IR")
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_unsupported_depth_ir_rejected(filters, mode):
+    sensor, hdrd, _ = filters
+    _set_hdrd(hdrd, mode, 1)
+    with pytest.raises(RuntimeError, match="Improved Close Range Depth .* requires Depth"):
+        sensor.open(_unsupported_depth_ir(sensor, mode))
+
+
+@pytest.mark.context("nightly")
+@pytest.mark.parametrize("mode", MODES)
+def test_depth_streams_after_rejection(filters, mode):
+    """Both tickets expect a rejected profile not to affect normal Depth output"""
+    sensor, hdrd, _ = filters
+    _set_hdrd(hdrd, mode, 1)
+    with pytest.raises(RuntimeError, match="Improved Close Range Depth .* requires Depth"):
+        sensor.open(_unsupported_depth_ir(sensor, mode))
+    supported, _ = _profiles_by_support(sensor, mode)
+    assert _stream_until_frame(sensor, supported[0]), f"{mode} {_describe(supported[0])}: no frames after rejection"
+
+
 @pytest.mark.context("nightly")
 @pytest.mark.parametrize("mode", MODES)
 def test_supported_profiles_accepted(filters, mode):

@@ -55,7 +55,16 @@ static bool embedded_decimation_enabled( const d500_depth_sensor & depth_sensor 
         if( filter->supports_composite_option( RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP ) )
         {
             rs2_decimation_filter_dpp_config cfg;
-            auto raw = filter->get_composite_option( RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP ).get_raw();
+            std::vector< uint8_t > raw;
+            try
+            {
+                raw = filter->get_composite_option( RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP ).get_raw();
+            }
+            catch( const std::exception & e )
+            {
+                LOG_WARNING( "Decimation state unavailable, treating it as disabled: " << e.what() );
+                return false;
+            }
             if( raw.size() != sizeof( cfg ) )
                 return false;
             std::memcpy( &cfg, raw.data(), sizeof( cfg ) );
@@ -66,11 +75,10 @@ static bool embedded_decimation_enabled( const d500_depth_sensor & depth_sensor 
 
 // FW rejects unsupported MinZ profiles only once streaming starts, with an obscure error (Depth+IR on Windows even
 // needs a replug) - so the SDK checks the D585 MinZ profile limits first.
-static void minz_allowed_or_throw( const void * hdrd_control, size_t size, const stream_profiles & profiles,
+static void minz_allowed_or_throw( const void * hdrd_control, size_t size, const video_stream_profile_interface & depth,
                                    const d500_depth_sensor & depth_sensor )
 {
-    auto depth = find_depth_profile( profiles );
-    if( ! depth || ! hdrd_control || size != sizeof( rs2_hdrd_control ) )
+    if( ! hdrd_control || size != sizeof( rs2_hdrd_control ) )
         return;
     rs2_hdrd_control cfg;
     std::memcpy( &cfg, hdrd_control, sizeof( cfg ) );
@@ -104,9 +112,9 @@ static void minz_allowed_or_throw( const void * hdrd_control, size_t size, const
     }
 
     uint32_t const max_fps = 30;
-    uint32_t const w = depth->get_width();
-    uint32_t const h = depth->get_height();
-    uint32_t const fps = depth->get_framerate();
+    uint32_t const w = depth.get_width();
+    uint32_t const h = depth.get_height();
+    uint32_t const fps = depth.get_framerate();
     bool const size_ok = w >= min_w && h >= min_h && w % align == 0 && h % align == 0;
     if( ! size_ok || fps > max_fps )
         throw invalid_value_exception( rsutils::string::from()
@@ -129,7 +137,8 @@ public:
     {
         auto active = _depth_sensor.get_active_streams();
         geometry_unchanged_or_throw( data, size, active );
-        minz_allowed_or_throw( data, size, active, _depth_sensor );
+        if( auto depth = find_depth_profile( active ) )
+            minz_allowed_or_throw( data, size, *depth, _depth_sensor );
         _xu->set_raw( data, size );
     }
     std::vector< uint8_t > get_raw_range() const override { return _xu->get_raw_range(); }
@@ -186,10 +195,20 @@ hdrd_filter_feature::hdrd_filter_feature( d500_device & owner, d500_depth_sensor
     owner.add_stream_combination_validator(
         [option, &depth_sensor]( const stream_profiles & requests )
         {
-            if( ! find_depth_profile( requests ) )
+            auto depth = find_depth_profile( requests );
+            if( ! depth )
                 return;
-            auto raw = option->get_raw();
-            minz_allowed_or_throw( raw.data(), raw.size(), requests, depth_sensor );
+            std::vector< uint8_t > raw;
+            try
+            {
+                raw = option->get_raw();
+            }
+            catch( const std::exception & e )
+            {
+                LOG_WARNING( "Improved Close Range Depth state unavailable, skipping profile check: " << e.what() );
+                return;
+            }
+            minz_allowed_or_throw( raw.data(), raw.size(), *depth, depth_sensor );
         } );
 }
 
