@@ -14,6 +14,7 @@
 
 #include <librealsense2/h/rs_composite_option.h>
 #include <librealsense2/h/rs_hdrd_control.h>
+#include <librealsense2/h/rs_decimation_filter_dpp.h>
 
 #include <algorithm>
 #include <cstring>
@@ -48,9 +49,23 @@ static std::shared_ptr< video_stream_profile_interface > find_depth_profile( con
     return nullptr;
 }
 
+static bool embedded_decimation_enabled( const d500_depth_sensor & depth_sensor )
+{
+    for( auto & filter : depth_sensor.get_supported_embedded_filters() )
+        if( filter->supports_composite_option( RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP ) )
+        {
+            rs2_decimation_filter_dpp_config cfg;
+            auto raw = filter->get_composite_option( RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP ).get_raw();
+            std::memcpy( &cfg, raw.data(), sizeof( cfg ) );
+            return cfg.enabled != 0;
+        }
+    return false;
+}
+
 // FW rejects unsupported MinZ profiles only once streaming starts, with an obscure error (Depth+IR on Windows even
 // needs a replug) - so the SDK checks the D585 MinZ profile limits first.
-static void minz_allowed_or_throw( const void * hdrd_control, size_t size, const stream_profiles & profiles )
+static void minz_allowed_or_throw( const void * hdrd_control, size_t size, const stream_profiles & profiles,
+                                   const d500_depth_sensor & depth_sensor )
 {
     auto depth = find_depth_profile( profiles );
     if( ! depth || ! hdrd_control || size != sizeof( rs2_hdrd_control ) )
@@ -61,13 +76,24 @@ static void minz_allowed_or_throw( const void * hdrd_control, size_t size, const
         return;
 
     bool const lookup_shift = cfg.filter_type != 0;
+    bool const x4 = ! lookup_shift && cfg.downscale_ratio == 2;
+    if( x4 && embedded_decimation_enabled( depth_sensor ) )
+        throw invalid_value_exception(
+            "Improved Close Range Depth Downscale x4 cannot be combined with the embedded Decimation filter" );
 
     // Downscale x2 defaults
     const char * mode = "Downscale x2";
     uint32_t min_w = 640;
     uint32_t min_h = 360;
     uint32_t align = 2;
-    if( lookup_shift )
+    if( x4 )
+    {
+        mode = "Downscale x4";
+        min_w = 1280;
+        min_h = 720;
+        align = 4;
+    }
+    else if( lookup_shift )
     {
         mode = "Lookup Shift";
         min_w = 424;
@@ -90,7 +116,7 @@ static void minz_allowed_or_throw( const void * hdrd_control, size_t size, const
 class minz_option : public composite_option_interface
 {
 public:
-    minz_option( std::shared_ptr< composite_xu_option > xu, const sensor_interface & depth_sensor )
+    minz_option( std::shared_ptr< composite_xu_option > xu, const d500_depth_sensor & depth_sensor )
         : _xu( std::move( xu ) )
         , _depth_sensor( depth_sensor )
     {
@@ -101,7 +127,7 @@ public:
     {
         auto active = _depth_sensor.get_active_streams();
         geometry_unchanged_or_throw( data, size, active );
-        minz_allowed_or_throw( data, size, active );
+        minz_allowed_or_throw( data, size, active, _depth_sensor );
         _xu->set_raw( data, size );
     }
     std::vector< uint8_t > get_raw_range() const override { return _xu->get_raw_range(); }
@@ -128,7 +154,7 @@ private:
     }
 
     std::shared_ptr< composite_xu_option > _xu;
-    const sensor_interface & _depth_sensor;
+    const d500_depth_sensor & _depth_sensor;
 };
 
 
@@ -154,12 +180,12 @@ hdrd_filter_feature::hdrd_filter_feature( d500_device & owner, d500_depth_sensor
 
     // MinZ may have been enabled while the sensor was closed - check it against the Depth profile being opened
     owner.add_stream_combination_validator(
-        [option]( const stream_profiles & requests )
+        [option, &depth_sensor]( const stream_profiles & requests )
         {
             if( ! find_depth_profile( requests ) )
                 return;
             auto raw = option->get_raw();
-            minz_allowed_or_throw( raw.data(), raw.size(), requests );
+            minz_allowed_or_throw( raw.data(), raw.size(), requests, depth_sensor );
         } );
 }
 

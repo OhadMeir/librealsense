@@ -24,6 +24,7 @@ MAX_FPS = 30
 # mode -> (filter_type, downscale_ratio, min width, min height, width/height alignment)
 MODES = {
     "downscale_x2": (0, 1, 640, 360, 2),
+    "downscale_x4": (0, 2, 1280, 720, 4),
     "lookup_shift": (1, 1, 424, 240, 1),
 }
 
@@ -176,3 +177,15 @@ def test_geometry_change_while_streaming_rejected(filters):
     sensor.stop()
     sensor.close()
     assert hdrd.get_hdrd_control(HDRD).filter_type == 0, "Filter Type changed while streaming"
+
+
+def test_downscale_x4_with_decimation_rejected(filters):
+    sensor, hdrd, decimation = filters
+    profile = next((p for p in _depth_profiles(sensor) if _describe(p) == "640x360@30"), None)
+    if profile is None:
+        pytest.skip("Depth 640x360@30 not available")
+
+    _set_decimation(decimation, 1)
+    _set_hdrd(hdrd, "downscale_x4", 1)
+    with pytest.raises(RuntimeError, match="cannot be combined with the embedded Decimation filter"):
+        sensor.open(profile)
