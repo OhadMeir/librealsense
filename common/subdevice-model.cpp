@@ -1504,7 +1504,7 @@ namespace rs2
                 score_b++;
 
             auto a_vp = a.as<video_stream_profile>();
-            auto b_vp = a.as<video_stream_profile>();
+            auto b_vp = b.as<video_stream_profile>();
             if (!a_vp || !b_vp)
                 return score_a < score_b;
 
@@ -1532,7 +1532,11 @@ namespace rs2
                     score_b++;
             }
 
-            return score_a < score_b;
+            // On a tie prefer the frame rate closest to the selected one, then the higher one
+            if (score_a != score_b)
+                return score_a < score_b;
+            auto dist_a = std::abs(a.fps() - fps), dist_b = std::abs(b.fps() - fps);
+            return dist_a != dist_b ? dist_a < dist_b : a.fps() > b.fps();
             });
     }
 
@@ -1550,18 +1554,10 @@ namespace rs2
         auto fps = shared_fps_values[ui.selected_shared_fps_id];
         int width = 0;
         int height = 0;
-        std::vector<std::pair<int, int>> selected_resolutions;
         if (!ui.is_multiple_resolutions)
         {
             width = res_values[ui.selected_res_id].first;
             height = res_values[ui.selected_res_id].second;
-        }
-        else
-        {
-            for (auto it = resolutions_per_stream.begin(); it != resolutions_per_stream.end(); ++it)
-            {
-                selected_resolutions.push_back(ui.selected_stream_to_res[it->first]);
-            }
         }
 
         std::vector<stream_profile> sorted_profiles = profiles;
@@ -1586,12 +1582,7 @@ namespace rs2
             {
                 if (check_profile(p, [&](video_stream_profile vsp)
                     {
-                        bool res = false;
-                        std::pair<int, int> cur_res;
-                        if (p.stream_type() == RS2_STREAM_DEPTH)
-                            cur_res = selected_resolutions[0];
-                        else
-                            cur_res = selected_resolutions[1];
+                        auto const & cur_res = ui.selected_stream_to_res[vsp.stream_type()];
                         return (vsp.width() == cur_res.first && vsp.height() == cur_res.second);
                     },
                     profiles_by_fps, results, p.fps(), num_streams, def_p))
@@ -1690,17 +1681,8 @@ namespace rs2
                 {
                     if (check_profile(p, [&](video_stream_profile vid_prof)
                         {
-                            bool res = false;
-                            for (int i = 0; i < selected_resolutions.size(); ++i)
-                            {
-                                auto cur_res = selected_resolutions[i];
-                                if (p.fps() == fps && vid_prof.width() == cur_res.first && vid_prof.height() == cur_res.second)
-                                {
-                                    res = true;
-                                    break;
-                                }
-                            }
-                            return res;
+                            auto const & cur_res = ui.selected_stream_to_res[vid_prof.stream_type()];
+                            return p.fps() == fps && vid_prof.width() == cur_res.first && vid_prof.height() == cur_res.second;
                         },
                         profiles_by_format, results, p.format(), num_streams, def_p))
                         break;
