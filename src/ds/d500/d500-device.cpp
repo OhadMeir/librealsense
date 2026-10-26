@@ -839,7 +839,7 @@ namespace librealsense
         auto & depth_sensor = dynamic_cast< d500_depth_sensor & >( get_depth_sensor() );
         register_feature( std::make_shared< decimation_filter_feature >( depth_sensor, _is_mipi_device ) );
         register_feature( std::make_shared< temporal_filter_feature >( depth_sensor, _is_mipi_device ) );
-        register_feature( std::make_shared< hdrd_filter_feature >( depth_sensor, _is_mipi_device ) );
+        register_feature( std::make_shared< hdrd_filter_feature >( *this, depth_sensor, _is_mipi_device ) );
     }
 
     void d500_device::register_converters( synthetic_sensor & depth_sensor )
