@@ -56,11 +56,13 @@ def _describe(p):
 def _streaming(sensor, profile, callback=lambda f: None):
     """Stops and closes even when the body fails, so the next test finds the sensor idle"""
     sensor.open(profile)
-    sensor.start(callback)
     try:
-        yield
+        sensor.start(callback)
+        try:
+            yield
+        finally:
+            sensor.stop()
     finally:
-        sensor.stop()
         sensor.close()
 
 
