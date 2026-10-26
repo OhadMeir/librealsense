@@ -179,6 +179,25 @@ namespace librealsense
             return create_default_matcher( streams );
         }
 
+        // Color may run at a resolution of its own, shared by both color streams; every stream shares the frame rate.
+        bool contradicts( const stream_profile_interface * a, const std::vector< stream_profile > & others ) const override
+        {
+            bool const a_is_color = a->get_stream_type() == RS2_STREAM_COLOR;
+            std::vector< stream_profile > same_group;
+            for( auto & sp : others )
+            {
+                if( ( sp.stream == RS2_STREAM_COLOR ) == a_is_color )
+                    same_group.push_back( sp );
+                else if( a->get_framerate() != 0 && sp.fps != 0 && a->get_framerate() != sp.fps )
+                    return true;
+            }
+            return device::contradicts( a, same_group );
+        }
+
+        // On Windows, starting the IMU after the depth sensor was opened stops one of its video streams unless all
+        // run at the 1280x720@30 default, so each sensor starts before the next one opens. Linux streams fine either way.
+        bool start_sensors_when_opened() const override { return true; }
+
         std::vector<tagged_profile> get_profiles_tags() const override
         {
             std::vector<tagged_profile> tags;
@@ -189,8 +208,11 @@ namespace librealsense
 
             tags.push_back({ RS2_STREAM_DEPTH, -1, 1280, 720, RS2_FORMAT_Z16, video_fps, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_INFRARED, -1, 1280, 720, RS2_FORMAT_Y8, video_fps, profile_tag::PROFILE_TAG_SUPERSET });
-            tags.push_back({ RS2_STREAM_COLOR, 1, 1280, 720, RS2_FORMAT_NV12, video_fps, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
-            tags.push_back({ RS2_STREAM_COLOR, 2, 1280, 720, RS2_FORMAT_NV12, video_fps, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
+            // USB color defaults to 1600x900, keeping depth's 16:9 aspect ratio
+            int color_width = _is_mipi_device ? 1280 : 1600;
+            int color_height = _is_mipi_device ? 720 : 900;
+            tags.push_back({ RS2_STREAM_COLOR, 1, color_width, color_height, RS2_FORMAT_NV12, video_fps, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
+            tags.push_back({ RS2_STREAM_COLOR, 2, color_width, color_height, RS2_FORMAT_NV12, video_fps, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_GYRO, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, (int)odr::IMU_FPS_200, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_ACCEL, -1, 0, 0, RS2_FORMAT_MOTION_XYZ32F, accel_fps, profile_tag::PROFILE_TAG_SUPERSET | profile_tag::PROFILE_TAG_DEFAULT });
             tags.push_back({ RS2_STREAM_OBJECT_DETECTION, -1, -1, -1, RS2_FORMAT_Y8, -1, profile_tag::PROFILE_TAG_SUPERSET });
