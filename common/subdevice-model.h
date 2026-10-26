@@ -292,6 +292,8 @@ namespace rs2
         bool has_color_streams() const;
         bool ir_shares_depth_resolution() const;
         void sync_ir_to_depth_resolution();
+        // In the split resolution UI: whether the profile has the resolution selected for its stream
+        bool is_selected_resolution( const video_stream_profile & profile ) const;
         bool is_decimation_enabled() const;
         void refresh_multiple_resolutions_state();
         void apply_decimation_resolution_defaults();

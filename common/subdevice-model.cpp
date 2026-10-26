@@ -1580,11 +1580,7 @@ namespace rs2
             std::map<int, std::map<int, stream_profile>> profiles_by_fps;
             for (auto&& p : sorted_profiles)
             {
-                if (check_profile(p, [&](video_stream_profile vsp)
-                    {
-                        auto const & cur_res = ui.selected_stream_to_res[vsp.stream_type()];
-                        return (vsp.width() == cur_res.first && vsp.height() == cur_res.second);
-                    },
+                if (check_profile(p, [&](video_stream_profile vsp) { return is_selected_resolution(vsp); },
                     profiles_by_fps, results, p.fps(), num_streams, def_p))
                     break;
             }
@@ -1679,11 +1675,7 @@ namespace rs2
                 }
                 else
                 {
-                    if (check_profile(p, [&](video_stream_profile vid_prof)
-                        {
-                            auto const & cur_res = ui.selected_stream_to_res[vid_prof.stream_type()];
-                            return p.fps() == fps && vid_prof.width() == cur_res.first && vid_prof.height() == cur_res.second;
-                        },
+                    if (check_profile(p, [&](video_stream_profile vid_prof) { return p.fps() == fps && is_selected_resolution(vid_prof); },
                         profiles_by_format, results, p.format(), num_streams, def_p))
                         break;
                 }
@@ -1985,6 +1977,12 @@ namespace rs2
     {
         // Without decimation, dual-color IR delivers no frames at any resolution but depth's
         return has_color_streams() && ! is_decimation_enabled();
+    }
+
+    bool subdevice_model::is_selected_resolution( const video_stream_profile & profile ) const
+    {
+        auto it = ui.selected_stream_to_res.find( profile.stream_type() );
+        return it != ui.selected_stream_to_res.end() && it->second == std::make_pair( profile.width(), profile.height() );
     }
 
     void subdevice_model::sync_ir_to_depth_resolution()
