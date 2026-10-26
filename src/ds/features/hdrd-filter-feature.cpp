@@ -56,6 +56,8 @@ static bool embedded_decimation_enabled( const d500_depth_sensor & depth_sensor 
         {
             rs2_decimation_filter_dpp_config cfg;
             auto raw = filter->get_composite_option( RS2_COMPOSITE_OPTION_DECIMATION_FILTER_DPP ).get_raw();
+            if( raw.size() != sizeof( cfg ) )
+                return false;
             std::memcpy( &cfg, raw.data(), sizeof( cfg ) );
             return cfg.enabled != 0;
         }
@@ -147,6 +149,8 @@ private:
         rs2_hdrd_control current;
         std::memcpy( &next, data, sizeof( next ) );
         auto raw = _xu->get_raw();
+        if( raw.size() != sizeof( current ) )
+            return;
         std::memcpy( &current, raw.data(), sizeof( current ) );
         if( next.filter_type != current.filter_type || next.downscale_ratio != current.downscale_ratio )
             throw wrong_api_call_sequence_exception( "Improved Close Range Depth Filter Type and Downscale Ratio cannot be "

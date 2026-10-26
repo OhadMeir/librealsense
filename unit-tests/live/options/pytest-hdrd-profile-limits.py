@@ -6,6 +6,7 @@ unsupported Depth profile; the nightly tests, which stream, also check that ever
 and that enabling the filter while streaming follows the same rules."""
 
 import time
+from contextlib import contextmanager
 import pytest
 import pyrealsense2 as rs
 import logging
@@ -51,16 +52,25 @@ def _describe(p):
     return f"{v.width()}x{v.height()}@{p.fps()}"
 
 
+@contextmanager
+def _streaming(sensor, profile, callback=lambda f: None):
+    """Stops and closes even when the body fails, so the next test finds the sensor idle"""
+    sensor.open(profile)
+    sensor.start(callback)
+    try:
+        yield
+    finally:
+        sensor.stop()
+        sensor.close()
+
+
 def _stream_until_frame(sensor, profile, timeout=5):
     """Always start after open: open+close without streaming can leave a D585 USB pin dead until reset"""
     frames = []
-    sensor.open(profile)
-    sensor.start(lambda f: frames.append(f.get_frame_number()))
-    deadline = time.time() + timeout
-    while not frames and time.time() < deadline:
-        time.sleep(0.05)
-    sensor.stop()
-    sensor.close()
+    with _streaming(sensor, profile, lambda f: frames.append(f.get_frame_number())):
+        deadline = time.time() + timeout
+        while not frames and time.time() < deadline:
+            time.sleep(0.05)
     return len(frames)
 
 
@@ -95,7 +105,7 @@ def filters(test_device):
     _set_decimation(decimation, 0)
     _set_hdrd(hdrd, "downscale_x2", 0)
     yield sensor, hdrd, decimation
-    if sensor.get_active_streams():
+    if sensor.get_active_streams():  # an unsupported profile that opened by mistake; never started
         sensor.close()
     hdrd.set_composite_option(HDRD, bytes(original_hdrd))
     decimation.set_composite_option(DECIMATION, original_decimation)
@@ -145,19 +155,13 @@ def test_enable_while_streaming(filters, mode):
     supported, unsupported = _profiles_by_support(sensor, mode)
     assert supported and unsupported, f"{mode}: need both a supported and an unsupported Depth profile"
 
-    sensor.open(unsupported[0])
-    sensor.start(lambda f: None)
-    with pytest.raises(RuntimeError, match="Improved Close Range Depth .* requires Depth"):
-        _set_hdrd(hdrd, mode, 1)
-    sensor.stop()
-    sensor.close()
+    with _streaming(sensor, unsupported[0]):
+        with pytest.raises(RuntimeError, match="Improved Close Range Depth .* requires Depth"):
+            _set_hdrd(hdrd, mode, 1)
     assert hdrd.get_hdrd_control(HDRD).enable == 0, f"{mode} {_describe(unsupported[0])}: filter got enabled"
 
-    sensor.open(supported[0])
-    sensor.start(lambda f: None)
-    _set_hdrd(hdrd, mode, 1)
-    sensor.stop()
-    sensor.close()
+    with _streaming(sensor, supported[0]):
+        _set_hdrd(hdrd, mode, 1)
     assert hdrd.get_hdrd_control(HDRD).enable == 1, f"{mode} {_describe(supported[0])}: filter not enabled"
 
 
@@ -169,13 +173,10 @@ def test_geometry_change_while_streaming_rejected(filters):
         pytest.skip("Depth 640x480@30 not available")
 
     _set_hdrd(hdrd, "downscale_x2", 1)
-    sensor.open(profile)
-    sensor.start(lambda f: None)
-    with pytest.raises(RuntimeError, match="cannot be changed while Depth or Infrared is streaming"):
-        _set_hdrd(hdrd, "lookup_shift", 1)
-    _set_hdrd(hdrd, "downscale_x2", 0)  # same Filter Type and Downscale Ratio - allowed
-    sensor.stop()
-    sensor.close()
+    with _streaming(sensor, profile):
+        with pytest.raises(RuntimeError, match="cannot be changed while Depth or Infrared is streaming"):
+            _set_hdrd(hdrd, "lookup_shift", 1)
+        _set_hdrd(hdrd, "downscale_x2", 0)  # same Filter Type and Downscale Ratio - allowed
     assert hdrd.get_hdrd_control(HDRD).filter_type == 0, "Filter Type changed while streaming"
 
 
