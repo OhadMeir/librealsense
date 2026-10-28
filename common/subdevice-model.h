@@ -127,6 +127,7 @@ namespace rs2
         void pause();
         void resume();
         void wait_for_stop();
+        bool is_stopping();
 
         void update_ui(std::vector<stream_profile> profiles_vec);
         void get_sorted_profiles(std::vector<stream_profile>& profiles);

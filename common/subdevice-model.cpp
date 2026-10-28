@@ -2140,6 +2140,12 @@ namespace rs2
             local.get();
     }
 
+    bool subdevice_model::is_stopping()
+    {
+        std::lock_guard< std::mutex > lock( _stop_mutex );
+        return _stop_future.valid() && _stop_future.wait_for( std::chrono::seconds( 0 ) ) != std::future_status::ready;
+    }
+
     void subdevice_model::stop(std::shared_ptr<notifications_model> not_model)
     {
         if (not_model)
