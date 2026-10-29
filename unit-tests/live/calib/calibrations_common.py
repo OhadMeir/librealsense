@@ -20,6 +20,9 @@ OCC_TIMEOUT_MS_HA = 9000
 TARE_TIMEOUT_MS_HA = 9000
 FRAME_PROCESSING_TIMEOUT_MS = 5000
 HARDWARE_RESET_DELAY_SECONDS = 3
+# A table write right after stream-off adds a low-fill start-up frame to the next stream, skewing fill
+# measurements (D400 FW, RSDEV-15906); remove once fixed
+TABLE_WRITE_DELAY_SECONDS = 0.5
 
 # Global variable to store original calibration table
 _global_original_calib_table = None
@@ -470,6 +473,7 @@ def write_calibration_table_with_crc(device, modified_data):
         calib_list = list(final_data)
         
         # Write to device - device is already auto_calibrated_device
+        time.sleep(TABLE_WRITE_DELAY_SECONDS)
         device.set_calibration_table(calib_list)
         device.write_calibration()
         
