@@ -144,8 +144,16 @@ namespace librealsense
                     // As a workaround for pipeline API usage, we use the assumption that depth sensor is first in the map if it is added to the configuration,
                     // When we reverse iterate it, the depth sensor opening will be last This should not affect other stream
                     // which are capable of being opened decoupled from other sensors
-                    for( int index : ordered_sensor_indices( true ) )
-                        _results.at( index )->open( _dev_to_profiles.at( index ) );
+                    _opened.clear();
+                    _started.clear();
+                    with_rollback( [&]
+                    {
+                        for( int index : ordered_sensor_indices( true ) )
+                        {
+                            _results.at( index )->open( _dev_to_profiles.at( index ) );
+                            _opened.push_back( _results.at( index ) );
+                        }
+                    } );
                 }
 
                 template<class T>
@@ -154,8 +162,14 @@ namespace librealsense
                     // Same order as open(): producers first, derived streams last. On USB the pipe is
                     // established at open(); on DDS only at start() - a fixed order (rather than
                     // reversing between open() and start()) is what's actually correct for both.
-                    for( int index : ordered_sensor_indices( false ) )
-                        _results.at( index )->start( callback );
+                    with_rollback( [&]
+                    {
+                        for( int index : ordered_sensor_indices( false ) )
+                        {
+                            _results.at( index )->start( callback );
+                            _started.push_back( _results.at( index ) );
+                        }
+                    } );
                 }
 
                 template< class T >
@@ -163,12 +177,19 @@ namespace librealsense
                 {
                     // Calling open() than start() opens all relevant sensors before starting any of them.
                     // For some device backends we want to open and start each sensor before opening the next sensor.
-                    for( int index : ordered_sensor_indices( true ) )
+                    _opened.clear();
+                    _started.clear();
+                    with_rollback( [&]
                     {
-                        auto && sub = _results.at( index );
-                        sub->open( _dev_to_profiles.at( index ) );
-                        sub->start( callback );
-                    }
+                        for( int index : ordered_sensor_indices( true ) )
+                        {
+                            auto sub = _results.at( index );
+                            sub->open( _dev_to_profiles.at( index ) );
+                            _opened.push_back( sub );
+                            sub->start( callback );
+                            _started.push_back( sub );
+                        }
+                    } );
                 }
 
                 void stop()
@@ -193,6 +214,27 @@ namespace librealsense
                 }
             private:
                 friend class config;
+
+                // On failure, stops and closes only what this multistream started and opened, then rethrows: the
+                // pipeline never becomes active, so nothing else would release them.
+                template< class F >
+                void with_rollback( F && action )
+                {
+                    try
+                    {
+                        action();
+                    }
+                    catch( ... )
+                    {
+                        for( auto sub : _started )
+                            try { sub->stop(); } catch( ... ) {}
+                        for( auto sub : _opened )
+                            try { sub->close(); } catch( ... ) {}
+                        _started.clear();
+                        _opened.clear();
+                        throw;
+                    }
+                }
 
                 // Sensor indices in open/start order: producers first (in the given direction), derived-stream sensors last
                 std::vector< int > ordered_sensor_indices( bool reverse ) const
@@ -235,6 +277,7 @@ namespace librealsense
                 std::map<index_type, sensor_interface*> _devices;
                 std::map<int, sensor_interface*> _results;
                 std::map<int, stream_profiles> _dev_to_profiles;
+                std::vector< sensor_interface * > _opened, _started;   // for rollback when open/start fails
             };
 
             config() : require_all(true) {}
