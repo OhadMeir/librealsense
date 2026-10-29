@@ -26,6 +26,8 @@ namespace librealsense {
     static constexpr size_t field_count = std::extent< decltype( field_names ) >::value;
     static constexpr size_t downscale_ratio_field = 2;
     static constexpr size_t fields_offset = offsetof( rs2_hdrd_control, enable );
+    static_assert( offsetof( rs2_hdrd_control, reserved ) - fields_offset == field_count * sizeof( int32_t ),
+                   "field_names must match the contiguous int32_t fields of rs2_hdrd_control" );
 
     // The downscale ratio is a DDS enum of "2"/"4"; rs2_hdrd_control holds 1 = x2, 2 = x4
     static int32_t to_field( size_t i, json const & dds_value )
@@ -101,8 +103,7 @@ namespace librealsense {
                                                << option->get_minimum_value() << ", " << option->get_maximum_value() << "]" );
             options[option->get_name()] = std::move( value );
         }
-        _set_ef_cb( options );
-        _dds_ef->set_options( options );
+        _set_ef_cb( options );  // the reply updates the cached values, possibly adjusted by FW
     }
 
     // Enums carry no range, so their bounds come from the first/last choice
