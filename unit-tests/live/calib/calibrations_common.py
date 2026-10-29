@@ -417,6 +417,8 @@ def restore_calibration_table(device, saved_table=None):
             log.error("Device does not support auto calibration")
             return False
 
+        time.sleep(TABLE_WRITE_DELAY_SECONDS)  # both paths below reload the table, see RSDEV-15906
+
         # Option 1: Factory reset
         if saved_table is None:
             log.info("Restoring factory calibration")
