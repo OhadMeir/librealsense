@@ -41,6 +41,7 @@ class _CameraInfo:
     product_line = "product_line"
     physical_port = "physical_port"
     connection_type = "connection_type"
+    firmware_version = "firmware_version"
 _rs.camera_info = _CameraInfo
 class _LogSeverity:
     debug = 0
@@ -60,6 +61,7 @@ sys.modules["pyrealsense2"] = _rs
 class FakeDevice:
     def __init__(self, sn, name):
         self.sn = sn
+        self.serial_number = sn
         self.name = name
         self.connection_type = "USB"
 

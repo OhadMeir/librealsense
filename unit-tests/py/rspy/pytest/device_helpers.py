@@ -386,6 +386,46 @@ def require_min_fw_version(dev, min_version, feature_name="", inclusive=True):
     _fw_version_cache[key] = True
 
 
+REQUIRES_FLAGS = ('fw', 'option', 'sensor')
+
+
+def parse_fw_version(text):
+    """'7.62', '7.62.40621' or '7.62.40621.11153' -> (7, 62, 40621, 11153); missing parts are 0."""
+    parts = str(text).split('.')
+    if not 2 <= len(parts) <= 4 or not all(p.isdigit() for p in parts):
+        raise ValueError(f"FW version {text!r} is not like 7.62 or 7.62.40621.11153")
+    return tuple(int(p) for p in parts) + (0,) * (4 - len(parts))
+
+
+def unmet_requirement(device, requires_markers):
+    """Why the rspy device fails the ``requires(fw=, option=, sensor=)`` markers (all optional, all must hold), or None.
+    ``fw``: a minimum, or {device_each-style spec: minimum or None}, first matching spec wins; ``option``: any one of a list.
+    Reads the last-enumerated handle: the camera stays off, FW flashed earlier in the session counts, recovery never skips."""
+    if not requires_markers or not device:
+        return None
+    import pyrealsense2 as rs
+    dev = device.handle
+    if dev.is_in_recovery_mode() or not dev.supports(rs.camera_info.firmware_version):
+        return None
+    fw = dev.get_info(rs.camera_info.firmware_version)
+    sensors = dev.query_sensors()
+    sensor_names = [s.get_info(rs.camera_info.name) for s in sensors]
+    for marker in requires_markers:
+        min_fw = marker.kwargs.get('fw')
+        if isinstance(min_fw, dict):
+            min_fw = next((v for spec, v in min_fw.items() if device.serial_number in devices.by_spec(spec, [])), None)
+        if min_fw and parse_fw_version(fw) < parse_fw_version(min_fw):
+            return f"{device.name} FW {fw} is below the required {min_fw}"
+        options = marker.kwargs.get('option', [])
+        options = options if isinstance(options, (list, tuple)) else [options]
+        if options and not any(s.supports(o) for s in sensors for o in options):
+            return f"{device.name} has no {' or '.join(map(str, options))} option"
+        sensor = marker.kwargs.get('sensor')
+        if sensor and sensor not in sensor_names:
+            return f"{device.name} has no {sensor} sensor"
+    return None
+
+
 def skip_d585_on_gmsl(dev, reason):
     """Skip the test when the device is a D585 connected over GMSL.
 
